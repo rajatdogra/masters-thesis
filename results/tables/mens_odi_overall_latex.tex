@@ -1,0 +1,15 @@
+\begin{table}[htbp]
+\centering
+\caption{Overall Model Comparison on Men's ODI Test Set}
+\label{tab:overall_comparison}
+\begin{tabular}{lrrrrrrrrr}
+\toprule
+Model & Subset & RMSE & MAE & R2 & MAPE & Within_5 & Within_10 & Within_20 & N \\
+\midrule
+DLS & Overall & 61.31 & 41.18 & 0.24 & 17.59 & 13.94 & 25.86 & 42.93 & 25392 \\
+XGBoost & Overall & 45.82 & 33.38 & 0.58 & 15.52 & 13.72 & 25.93 & 44.41 & 25392 \\
+RandomForest & Overall & 45.84 & 33.49 & 0.58 & 15.80 & 13.42 & 25.40 & 44.26 & 25392 \\
+LightGBM & Overall & 45.81 & 33.35 & 0.58 & 15.47 & 13.68 & 26.01 & 44.63 & 25392 \\
+\bottomrule
+\end{tabular}
+\end{table}

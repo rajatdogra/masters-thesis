@@ -1,0 +1,6 @@
+comparison,dm_stat,p_value,n_matches,bandwidth,direction,significant
+XGBoost_V2_vs_DLS,-8.9678,0.0,542,9,B_worse,True
+LightGBM_V2_vs_DLS,-8.9924,0.0,542,9,B_worse,True
+CatBoost_V2_vs_DLS,-9.0858,0.0,542,9,B_worse,True
+LightGBM_V1_vs_DLS,-9.8348,0.0,542,9,B_worse,True
+LightGBM_V2_vs_V1,-3.2335,0.001223,542,9,B_worse,True

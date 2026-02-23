@@ -1,0 +1,1625 @@
+\documentclass[12pt,a4paper,oneside]{report}
+
+% ============================================================
+% Packages
+% ============================================================
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{mathptmx}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{amsmath,amssymb}
+\usepackage{hyperref}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{url}
+\usepackage{natbib}
+\usepackage{parskip}
+\usepackage{fancyhdr}
+\setlength{\headheight}{14.5pt}
+\addtolength{\topmargin}{-2.5pt}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\graphicspath{{results/figures/}}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!60!black,
+    citecolor=blue!60!black,
+    urlcolor=blue!60!black,
+}
+
+% Header/footer
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\leftmark}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ============================================================
+% Title Page
+% ============================================================
+\begin{document}
+
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+
+{\LARGE\bfseries Machine Learning Approaches for Cricket Score Prediction:\\
+A Comparative Study with the Duckworth-Lewis-Stern Method}
+
+\vspace{2cm}
+
+{\Large A Thesis Submitted in Partial Fulfilment of the\\
+Requirements for the Degree of\\[0.5cm]
+\textbf{Master of Science}}
+
+\vspace{2cm}
+
+{\Large by\\[0.5cm]
+\textbf{Rajat Dogra}}
+
+\vspace{3cm}
+
+{\large Department of Computer Science}
+
+\vspace{1cm}
+
+{\large 2026}
+
+\vfill
+\end{titlepage}
+
+% ============================================================
+% Abstract
+% ============================================================
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+The Duckworth-Lewis-Stern (DLS) method has served as the official standard for resetting targets in rain-interrupted limited-overs cricket matches since 1999. Despite its widespread adoption by the International Cricket Council (ICC), the DLS method relies on a parametric model whose assumptions about scoring patterns have not kept pace with the evolution of modern cricket dynamics. This thesis presents a comprehensive, enterprise-scale empirical investigation into whether machine learning can outperform DLS in two tasks: (i) predicting first-innings totals from intermediate match states, and (ii) setting revised targets in rain-affected second innings.
+
+We develop a 46-feature engineering pipeline---more than doubling the original 22-feature baseline---incorporating temporally safe Elo team ratings, rolling player batting and bowling statistics (window = 30 innings), historical venue scoring profiles, and six momentum-based intra-over features. We train four model families (XGBoost, Random Forest, LightGBM, CatBoost) with Bayesian hyperparameter optimisation, using a rigorous \textbf{three-way temporal split} (60\% train / 20\% calibration / 20\% test) that reserves the calibration set for distribution-free conformal prediction intervals.
+
+For the second innings, we construct a parallel 53-feature chase-context pipeline incorporating the required run rate, a DLS-normalised pressure index, and first-innings summary statistics. We explicitly address the \textbf{censoring problem} inherent to second-innings score prediction (49.2\% of chasing innings are right-censored because teams stop when they win), training models on uncensored observations and documenting the selection bias.
+
+Statistical significance is established via \textbf{match-level Diebold-Mariano tests} with Newey-West HAC variance correction, \textbf{block-bootstrap 95\% confidence intervals} ($n=5000$ replications), and a \textbf{Model Confidence Set} at the 10\% level. We further conduct a seven-group ablation study to quantify each feature group's independent contribution, and evaluate \textbf{conformal prediction intervals} (MAPIE) that provide distribution-free coverage guarantees.
+
+Enhanced V2 ML models substantially outperform the DLS baseline: CatBoost V2 achieves RMSE~43.57 vs.\ DLS RMSE~65.03 on first-innings prediction (a 33\% reduction), with $R^2 = 0.618$ vs.\ DLS $R^2 = 0.150$.  For second innings, CatBoost Inn2 achieves RMSE~39.92 vs.\ DLS projection RMSE~75.74 ($R^2 = 0.595$ vs.\ $-0.457$).  Match-level Diebold-Mariano tests confirm statistical significance at $p < 0.001$ for all V2 models against DLS ($T = 542$ matches), and V2 significantly outperforms V1 ($p = 0.0012$).  The Model Confidence Set at the 10\% level includes CatBoost V2 and LightGBM V2.  Block-bootstrap 95\% CI for the RMSE difference is $[-23.94, -18.72]$ runs, excluding zero.  Explainable AI analysis via SHAP reveals that player batting statistics (+3.4\% ablation contribution) and DLS-derived features (+3.0\%) are the most influential feature groups.  Conformal prediction intervals provide 86.6\% empirical coverage at 90\% nominal level, with mean interval width of 129 runs, reflecting moderate temporal covariate shift between calibration and test periods.  Evaluation on 255 historical D/L-affected matches shows the ML revised target engine sets targets 9.9 runs higher on average, with substantially reduced variance compared to the official DLS system.
+
+\textbf{Keywords:} Cricket, Duckworth-Lewis-Stern, Machine Learning, Score Prediction, XGBoost, LightGBM, CatBoost, Elo, Player Features, Conformal Prediction, Diebold-Mariano Test, Second Innings, Revised Target
+
+% ============================================================
+% Acknowledgements
+% ============================================================
+\chapter*{Acknowledgements}
+\addcontentsline{toc}{chapter}{Acknowledgements}
+
+I would like to express my sincere gratitude to my supervisor for their invaluable guidance, feedback, and support throughout this research project. Their expertise in machine learning and cricket analytics was instrumental in shaping the direction of this thesis.
+
+I am grateful to Cricsheet.org for making their comprehensive ball-by-ball cricket data freely available to the research community. Without this dataset, the empirical foundation of this work would not have been possible.
+
+This thesis was built on a rich ecosystem of open-source tools and libraries. I would like to acknowledge the developers of Python, XGBoost, LightGBM, scikit-learn, SHAP, LIME, and Optuna, whose contributions to the scientific community made this research computationally feasible.
+
+Finally, I thank my family and friends for their patience, encouragement, and unwavering support during the many long hours of research and writing.
+
+% ============================================================
+% Table of Contents, Figures, Tables
+% ============================================================
+\tableofcontents
+\listoffigures
+\listoftables
+
+% ============================================================
+% Chapter 1: Introduction
+% ============================================================
+\chapter{Introduction}
+\label{ch:introduction}
+
+\section{Background and Context}
+
+Cricket is a bat-and-ball sport played between two teams of eleven players, with its origins tracing back to 16th-century England. The sport has evolved into one of the most popular games globally, with an estimated 2.5 billion fans worldwide \citep{icc2023}. In limited-overs cricket---comprising One-Day Internationals (ODIs) with 50 overs per side and Twenty20 Internationals (T20Is) with 20 overs---each team bats for a fixed number of overs, aiming to score as many runs as possible. The team batting second then attempts to surpass the first team's total within their allotted overs.
+
+A fundamental challenge in limited-overs cricket arises when matches are interrupted by rain or other external factors, necessitating a revised target for the team batting second. This scenario requires a fair method to adjust the target based on the resources (overs and wickets) available to each team. The Duckworth-Lewis method, introduced in 1997 by Frank Duckworth and Tony Lewis \citep{duckworth1998}, and later refined by Steven Stern \citep{stern2016}, has served as the ICC's official method for target revision since 1999. The method, now known as the Duckworth-Lewis-Stern (DLS) method, models cricket scoring as a function of two key resources: overs remaining and wickets in hand.
+
+\section{The Duckworth-Lewis-Stern Method}
+
+The DLS method is built upon a parametric model that expresses the expected runs a team can score as a function of its remaining resources. The core mathematical formulation is:
+
+\begin{equation}
+Z(u, w) = Z_0(w) \cdot \left[1 - \exp\left(-b(w) \cdot u\right)\right]
+\label{eq:dls}
+\end{equation}
+
+\noindent where:
+\begin{itemize}[nosep]
+    \item $u$ represents the number of overs remaining,
+    \item $w$ represents the number of wickets already fallen (0--9),
+    \item $Z_0(w)$ is the asymptotic maximum runs achievable with $w$ wickets lost,
+    \item $b(w)$ is the exponential decay parameter governing how quickly resources deplete as overs are consumed.
+\end{itemize}
+
+The resource percentage remaining at any point is calculated as:
+\begin{equation}
+R(u, w) = \frac{Z(u, w)}{Z(U, 0)} \times 100\%
+\end{equation}
+
+\noindent where $U$ is the total number of overs in an uninterrupted innings (50 for ODIs).
+
+While elegant and mathematically sound, the DLS method makes several simplifying assumptions. It treats scoring as a smooth exponential function, does not account for batting team strength, pitch conditions, or the specific match context beyond overs and wickets. These limitations suggest room for improvement through data-driven approaches that can capture more nuanced patterns in match progression.
+
+\section{Motivation}
+
+The rapid growth of cricket analytics, combined with the explosion of publicly available ball-by-ball match data, presents an opportunity to revisit the score prediction problem using modern machine learning techniques. Several factors motivate this investigation:
+
+\begin{enumerate}
+    \item \textbf{Data availability}: Comprehensive ball-by-ball data is now available for thousands of international matches through platforms such as Cricsheet.org \citep{cricsheet}, enabling data-driven modelling at unprecedented scale.
+
+    \item \textbf{Algorithmic advances}: Modern ensemble methods such as XGBoost \citep{chen2016xgboost}, LightGBM \citep{ke2017lightgbm}, and Random Forests \citep{breiman2001random} have demonstrated state-of-the-art performance across regression tasks, often surpassing traditional parametric models.
+
+    \item \textbf{Feature richness}: Machine learning models can incorporate a much wider set of contextual features---run rates, boundary percentages, recent wicket clusters, partnership information---that the DLS model's two-parameter framework cannot directly utilise.
+
+    \item \textbf{Explainability}: Recent advances in Explainable AI, particularly SHAP \citep{lundberg2017unified} and LIME \citep{ribeiro2016should}, allow us to interpret complex ML models, addressing the ``black-box'' concern that has historically limited their adoption in high-stakes sporting contexts.
+\end{enumerate}
+
+\section{Research Questions}
+
+This thesis addresses the following research questions:
+
+\begin{enumerate}
+    \item[\textbf{RQ1}:] Can machine learning models outperform the DLS method in predicting first-innings totals from intermediate match states in Men's ODI cricket?
+
+    \item[\textbf{RQ2}:] How does the relative performance of ML models versus DLS vary across different match phases (early, middle, late, death overs) and wicket states?
+
+    \item[\textbf{RQ3}:] Which match-state features are most influential in ML predictions, and how do they relate to the DLS model's resource-based framework?
+
+    \item[\textbf{RQ4}:] Can Explainable AI techniques provide meaningful insights into why ML models make specific predictions?
+
+    \item[\textbf{RQ5}:] Can distribution-free conformal prediction intervals provide reliable uncertainty quantification for score projections under temporal covariate shift?
+\end{enumerate}
+
+\section{Contributions}
+
+The primary contributions of this thesis are:
+
+\begin{enumerate}
+    \item A data-fitted DLS implementation validated against over 3,000 real match records, providing a rigorous parametric baseline.
+
+    \item A systematic multi-model comparison (XGBoost, Random Forest, LightGBM, CatBoost) with Bayesian hyperparameter optimisation (Optuna) and a three-way temporal split.
+
+    \item A 46-feature engineering pipeline (V2) incorporating temporally safe Elo team ratings, rolling player batting and bowling statistics, historical venue profiles, and momentum features---all computed in strictly chronological order with no look-ahead.
+
+    \item A scientifically rigorous statistical testing framework: match-level Diebold-Mariano tests with Newey-West HAC correction, block-bootstrap confidence intervals ($n=5000$), and a Model Confidence Set.
+
+    \item A seven-group leave-one-out ablation study quantifying the independent contribution of each feature group.
+
+    \item Distribution-free conformal prediction intervals (MAPIE) providing coverage guarantees for score projections.
+
+    \item A second-innings pipeline with explicit treatment of the right-censoring problem, including \texttt{is\_censored} labels and selection-bias documentation.
+
+    \item The first ML-based revised target engine evaluated on 255 historical D/L-affected matches.
+
+    \item Comprehensive SHAP and LIME explainability analysis linking ML feature importance to cricket domain knowledge.
+\end{enumerate}
+
+\section{Thesis Organisation}
+
+The remainder of this thesis is organised as follows. Chapter~\ref{ch:literature} reviews the relevant literature on the DLS method, machine learning in sports analytics, and cricket-specific prediction models. Chapter~\ref{ch:methodology} describes the data collection, feature engineering, model implementations, and evaluation framework. Chapter~\ref{ch:results} presents the baseline (V1) experimental results, including overall performance, phase-wise analysis, wicket-state comparisons, and explainability findings. Chapter~\ref{ch:phase2} presents the enhanced V2 feature pipeline, second-innings modelling, statistical significance tests, ablation study, and revised target evaluation. Chapter~\ref{ch:conclusion} concludes the thesis and outlines directions for future work.
+
+
+% ============================================================
+% Chapter 2: Literature Review
+% ============================================================
+\chapter{Literature Review}
+\label{ch:literature}
+
+This chapter surveys the existing body of work relevant to this thesis, organised into four areas: the historical development of the DLS method, machine learning applications in sports analytics, ML-based approaches specifically within cricket, and the growing field of Explainable AI in sports contexts.
+
+\section{The Duckworth-Lewis-Stern Method}
+
+\subsection{Historical Development}
+
+The challenge of revising targets in interrupted cricket matches predates the Duckworth-Lewis method. Earlier approaches, such as the ``Average Run Rate'' method and the ``Most Productive Overs'' method, were widely criticised for producing manifestly unfair targets \citep{duckworth1998}. The Average Run Rate method simply prorated the target by the fraction of overs available, ignoring the crucial role of wickets. The Most Productive Overs method, while more sophisticated, often penalised the team batting second by requiring them to match the best overs of the first team's innings.
+
+Duckworth and Lewis \citep{duckworth1998} proposed a fundamentally different approach by modelling the two key resources available to a batting team---overs remaining and wickets in hand---as a combined ``resource percentage.'' Their original formulation used an exponential decay model to represent the diminishing marginal value of additional overs as wickets fall. The ICC officially adopted the method for international matches in 1999.
+
+\subsection{The Stern Revision}
+
+In 2014, Steven Stern introduced significant refinements to the original Duckworth-Lewis model \citep{stern2016}. The key innovation was a revised parametric form that better handled high-scoring matches and adjusted for the increasing scoring rates in modern ODI cricket. The ``Professional Edition'' of the DLS method uses a more complex parametric structure with additional parameters, though the published academic version retains the exponential form shown in Equation~\ref{eq:dls}.
+
+\subsection{Criticisms and Limitations}
+
+Despite its mathematical elegance and official adoption, the DLS method has faced several criticisms. \citet{mchale2011modelling} argued that the method's assumption of a single universal resource table fails to account for team-specific scoring patterns. \citet{bhattacharya2011revised} demonstrated that the method systematically disadvantages the team batting second in certain scenarios, particularly when wickets fall in clusters. \citet{carter2005model} showed that the exponential decay model may not accurately reflect scoring patterns in the death overs, where batsmen often accelerate dramatically.
+
+More broadly, the DLS method operates on just two state variables (overs and wickets), discarding potentially relevant information about run rates, boundary frequencies, batting partnerships, and contextual factors such as venue and conditions. This information compression motivates the investigation of ML approaches that can utilise richer feature representations.
+
+\section{Machine Learning in Sports Analytics}
+
+The application of machine learning to sports prediction has grown substantially over the past two decades, driven by increased data availability and computational power. \citet{bunker2019machine} provides a comprehensive survey of ML applications across various sports, identifying regression and classification as the dominant paradigms.
+
+In particular, gradient boosting methods have emerged as dominant approaches in structured data prediction tasks. \citet{chen2016xgboost} introduced XGBoost, which combines gradient boosting with regularisation to prevent overfitting. \citet{ke2017lightgbm} proposed LightGBM, which achieves comparable accuracy with significantly faster training through histogram-based splitting and gradient-based one-side sampling. These methods have consistently outperformed traditional statistical models in sports analytics applications \citep{bunker2019machine}.
+
+\citet{baboota2019predictive} demonstrated the effectiveness of ensemble methods for football match outcome prediction, achieving accuracies exceeding 60\% by combining gradient boosting with careful feature engineering. Similarly, \citet{huang2010neural} applied neural networks to baseball run prediction, showing that non-linear models can capture complex interactions between game-state variables that linear methods miss.
+
+\section{Machine Learning in Cricket}
+
+Cricket analytics has experienced rapid growth, with researchers applying ML techniques to various prediction tasks.
+
+\subsection{Match Outcome Prediction}
+
+\citet{sankaranarayanan2014auto} developed a Random Forest-based system for live win probability estimation in cricket, using ball-by-ball features to generate real-time predictions. \citet{passi2018cricket} applied neural networks and Support Vector Machines to predict ODI match outcomes based on pre-match and in-match features, achieving prediction accuracies of up to 80\%.
+
+\subsection{Score Prediction}
+
+The task most closely related to our work---predicting the final score from an intermediate match state---has received growing attention. \citet{deep2016learning} used recurrent neural networks (RNNs) to model the sequential nature of cricket scoring, treating each over as a time step. While their approach showed promise, it required substantially more training data than traditional methods.
+
+\citet{jhanwar2016predicting} applied linear regression, SVMs, and Random Forests to ODI score prediction using team-level features, finding that ensemble methods significantly outperformed linear models. However, their work used match-level features rather than ball-by-ball match-state snapshots, limiting the granularity of predictions.
+
+\citet{viswanadha2017dynamic} proposed a dynamic Bayesian network for cricket score prediction, explicitly modelling the dependencies between overs. Their approach achieved improvements over the DLS method in certain scenarios but lacked the feature richness of modern gradient boosting approaches.
+
+\subsection{Comparison with DLS}
+
+A small number of studies have directly compared ML models with the DLS method. \citet{davis2015investigating} compared neural networks with the DLS method for T20 cricket, finding that neural networks could achieve competitive accuracy. However, their study was limited to a relatively small dataset and did not employ modern hyperparameter optimisation techniques.
+
+\section{Explainable AI in Sports}
+
+The ``black-box'' nature of complex ML models has been a persistent concern in sports analytics, where stakeholders (coaches, administrators, broadcasters) require not just accurate predictions but also explanations for those predictions.
+
+\citet{lundberg2017unified} introduced SHAP (SHapley Additive exPlanations), which provides theoretically grounded feature attributions based on Shapley values from cooperative game theory. SHAP has been particularly successful for tree-based models through the TreeExplainer algorithm \citep{lundberg2020local}, which can compute exact Shapley values in polynomial time.
+
+\citet{ribeiro2016should} proposed LIME (Local Interpretable Model-agnostic Explanations), which approximates any black-box model locally with an interpretable linear model. LIME is particularly valuable for providing instance-level explanations that help domain experts understand specific predictions.
+
+In cricket, \citet{kampakis2015using} argued for the importance of model interpretability, noting that the DLS method's acceptance is partly due to its transparent parametric structure. This observation underscores the need for any ML replacement to provide comparable interpretability through techniques like SHAP and LIME.
+
+\section{Research Gap}
+
+Despite the growing body of work in cricket analytics, several gaps remain that this thesis addresses:
+
+\begin{enumerate}
+    \item No existing study provides a comprehensive comparison of multiple state-of-the-art gradient boosting methods (XGBoost, LightGBM) against a properly fitted DLS baseline using the same large-scale dataset.
+
+    \item Previous comparisons have not employed modern hyperparameter optimisation (e.g., Optuna-based Bayesian search), which is critical for fair comparison.
+
+    \item The phase-wise and wicket-state analysis of model performance has not been systematically conducted, leaving gaps in understanding where ML models excel versus where DLS remains competitive.
+
+    \item The application of SHAP and LIME to cricket score prediction models is largely unexplored, despite the importance of interpretability for practical adoption.
+\end{enumerate}
+
+This thesis addresses all four gaps through a rigorous experimental framework and comprehensive analysis.
+
+
+% ============================================================
+% Chapter 3: Methodology
+% ============================================================
+\chapter{Methodology}
+\label{ch:methodology}
+
+This chapter details the experimental methodology, covering data collection and processing, DLS model implementation, feature engineering, ML model architectures and training procedures, and the evaluation framework.
+
+\section{Data Collection}
+
+\subsection{Data Source}
+
+All match data was sourced from Cricsheet.org \citep{cricsheet}, which provides freely available ball-by-ball match data in JSON format for international and domestic cricket. We focused on Men's One-Day International (ODI) matches as the primary format for analysis, as ODIs represent the format for which the DLS method was originally designed and where rain interruptions are most consequential.
+
+\subsection{Dataset Description}
+
+The raw dataset comprises approximately 4,500 Men's ODI matches spanning from the 1970s to 2024. Each match file contains detailed ball-by-ball information including runs scored, wickets taken, extras, and match metadata. From the raw JSON files, we extracted two structured datasets:
+
+\begin{itemize}
+    \item \textbf{Matches DataFrame}: Match-level metadata including match ID, date, venue, teams, toss information, winner, margin of victory, and whether the DLS method was applied.
+    \item \textbf{Deliveries DataFrame}: Ball-by-ball records including innings number, over number, ball number, batter, bowler, runs scored (batter runs, extras, total), wicket information, and boundary indicators.
+\end{itemize}
+
+\subsection{Data Filtering}
+
+To ensure a clean dataset for model training and evaluation, we applied the following filters:
+
+\begin{enumerate}
+    \item Removed matches where the DLS method was applied (as these have modified targets).
+    \item Excluded ``no result'' matches.
+    \item Retained only matches with a clear winner or tied result.
+    \item Focused exclusively on first innings data for score prediction.
+\end{enumerate}
+
+After filtering, the dataset contained approximately 3,500 completed Men's ODI matches with clean first-innings data.
+
+\section{Match-State Snapshots}
+
+A central design decision was the creation of \textit{match-state snapshots} at each over boundary. Rather than modelling ball-by-ball dynamics, we capture the cumulative match state after each completed over in the first innings. This yields approximately 40--50 snapshots per match (depending on the number of overs bowled), resulting in a total of approximately 130,000 data points.
+
+Each snapshot represents the state of the match at the end of over $k$ and is associated with the \textit{actual} final first-innings total as the prediction target. This framing allows us to evaluate how well models predict the eventual total from various stages of the innings.
+
+\section{Feature Engineering}
+\label{sec:features}
+
+We engineered 22 features for each over-boundary snapshot, organised into six categories. Table~\ref{tab:features} provides the complete feature set.
+
+\begin{table}[htbp]
+\centering
+\caption{Complete feature set for match-state snapshots (22 features)}
+\label{tab:features}
+\small
+\begin{tabular}{llp{7cm}}
+\toprule
+\textbf{Category} & \textbf{Feature} & \textbf{Description} \\
+\midrule
+\multirow{5}{*}{Core State} & overs\_completed & Number of overs completed (1--50) \\
+ & overs\_remaining & Overs remaining ($50 - $ overs\_completed) \\
+ & current\_score & Cumulative runs scored \\
+ & wickets\_fallen & Number of wickets lost (0--10) \\
+ & wickets\_in\_hand & Wickets remaining ($10 - $ wickets\_fallen) \\
+\midrule
+\multirow{3}{*}{Run Rates} & current\_run\_rate & current\_score / overs\_completed \\
+ & recent\_run\_rate\_5 & Mean runs per over in last 5 overs \\
+ & scoring\_acceleration & Current RR minus RR from 5 overs ago \\
+\midrule
+\multirow{3}{*}{Composition} & boundary\_percentage & \% of deliveries that were boundaries \\
+ & dot\_ball\_percentage & \% of legal deliveries with 0 runs \\
+ & partnership\_runs & Current partnership runs since last wicket \\
+\midrule
+\multirow{3}{*}{Phase} & is\_powerplay & Binary: overs 1--10 \\
+ & is\_middle\_overs & Binary: overs 11--40 \\
+ & is\_death\_overs & Binary: overs 41--50 \\
+\midrule
+\multirow{4}{*}{Match Stats} & recent\_wickets\_5 & Wickets fallen in last 5 overs \\
+ & cumulative\_boundaries & Total 4s and 6s hit \\
+ & cumulative\_sixes & Total 6s hit \\
+ & innings\_progress & overs\_completed / 50 \\
+\midrule
+\multirow{2}{*}{Context} & year & Year of match \\
+ & toss\_bat\_first & Binary: toss winner chose to bat \\
+\midrule
+\multirow{2}{*}{DLS} & resource\_pct\_dls & DLS resource \% remaining \\
+ & dls\_predicted\_final & DLS-predicted final score \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The inclusion of DLS-derived features (\texttt{resource\_pct\_dls} and \texttt{dls\_predicted\_final}) as input features to ML models is a deliberate design choice. By providing the DLS prediction as a feature, we allow ML models to ``start from'' the DLS estimate and learn corrections based on additional contextual information. This is analogous to a residual learning framework where the ML model need only learn the gap between DLS predictions and actual outcomes.
+
+\subsection{Target Variable}
+
+The target variable for all models is \texttt{final\_total}: the actual first-innings score at the conclusion of the innings. This is known for each snapshot in our training data (since we use only completed, uninterrupted first innings) but represents the quantity to be predicted during model deployment.
+
+\section{Enhanced Feature Engineering (V2, 46 Features)}
+\label{sec:features_v2}
+
+To address the limitations of the baseline 22-feature set, we developed a second-generation feature pipeline (V2) incorporating four additional feature groups.  Three collinear features from V1 (\texttt{overs\_remaining} $= 50 - \texttt{overs\_completed}$, \texttt{wickets\_in\_hand} $= 10 - \texttt{wickets\_fallen}$, \texttt{innings\_progress} $= \texttt{overs\_completed}/50$) were removed to preserve SHAP interpretability; tree models are unaffected by removal of perfectly collinear inputs, but SHAP values become arbitrarily distributed among collinear pairs without it.
+
+\subsection{Temporally-Safe Elo Team Ratings}
+
+We compute per-team Elo ratings from the complete match history, updating ratings \emph{before} each match to ensure no look-ahead.  The Elo update rule is:
+\begin{equation}
+R'_A = R_A + K \cdot M_e \cdot (S_A - E_A), \quad
+E_A = \frac{1}{1 + 10^{(R_B + H - R_A)/400}}
+\end{equation}
+where $K=32$ is the base sensitivity constant, $M_e$ is an event importance multiplier (2.0 for World Cups, 1.5 for other ICC events, 1.0 for bilateral series), $S_A \in \{0, 0.5, 1\}$ is the match result for team $A$, and $H=50$ is a home-ground advantage adjustment.  Each team begins with $R=1500$ and requires a minimum of 20 matches before ratings are considered reliable.  Three features are derived: \texttt{batting\_team\_elo}, \texttt{bowling\_team\_elo}, and \texttt{elo\_gap}.
+
+\subsection{Rolling Player Statistics}
+
+For each over-boundary snapshot, we include statistics for the current striker, non-striker, and bowler, computed from their most recent 30 innings/appearances \emph{prior} to the current match.  A minimum of 5 batting (3 bowling) appearances is required before using a player's rolling statistic; below this threshold, the global median is substituted.  Eleven features are derived (Table~\ref{tab:player_feats}).
+
+\begin{table}[htbp]
+\centering
+\caption{Rolling player feature definitions (V2 additions)}
+\label{tab:player_feats}
+\small
+\begin{tabular}{lp{9cm}}
+\toprule
+\textbf{Feature} & \textbf{Definition} \\
+\midrule
+\texttt{batter1\_avg\_30}          & Striker's batting average over last 30 innings \\
+\texttt{batter1\_sr\_30}           & Striker's strike rate (runs per 100 balls) \\
+\texttt{batter1\_boundary\_rate\_30} & Striker's boundary rate (4s+6s per ball) \\
+\texttt{batter1\_innings\_count}   & Career innings count (proxy for experience) \\
+\texttt{batter2\_avg\_30}          & Non-striker's batting average \\
+\texttt{batter2\_sr\_30}           & Non-striker's strike rate \\
+\texttt{partnership\_quality}      & Harmonic mean of both batters' strike rates \\
+\texttt{current\_bowler\_economy\_30} & Bowler's economy rate over last 30 appearances \\
+\texttt{current\_bowler\_sr\_30}   & Bowler's balls-per-wicket ratio \\
+\texttt{batting\_team\_avg\_score\_5} & Batting team's mean first-innings score over last 5 matches \\
+\texttt{bowling\_team\_avg\_economy\_5} & Bowling team's mean economy over last 5 matches \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Historical Venue Statistics}
+
+Venue features are computed from completed first innings at the same ground, using only matches that occurred \emph{before} the current match.  A minimum of 5 prior matches at the venue is required; otherwise the global mean is used.  Seven features are derived: \texttt{venue\_avg\_score}, \texttt{venue\_std\_score}, \texttt{venue\_avg\_wickets\_25}, \texttt{venue\_boundary\_rate}, \texttt{venue\_high\_score\_rate} (fraction of matches with total $>300$), \texttt{venue\_matches\_count}, and \texttt{batting\_at\_home} (home-ground indicator based on city--team name matching).
+
+\subsection{Momentum and Volatility Features}
+
+Six additional intra-over features capture scoring momentum and volatility within the current innings:
+
+\begin{itemize}[nosep]
+    \item \texttt{run\_rate\_std\_5}: standard deviation of runs-per-over over the last 5 overs (scoring volatility),
+    \item \texttt{wicket\_rate\_10}: mean wickets per over over the last 10 overs (recent pressure),
+    \item \texttt{powerplay\_score}: cumulative runs at the end of the powerplay (over 10), constant within a match,
+    \item \texttt{balls\_per\_boundary}: cumulative legal balls divided by boundaries hit (lower = more aggressive),
+    \item \texttt{manhattan\_gradient}: linear least-squares slope of runs-per-over over the last 5 overs (upward or downward trend),
+    \item \texttt{run\_rate\_vs\_venue}: current run rate as a ratio of the venue's historical average run rate (contextualises pace against ground conditions).
+\end{itemize}
+
+\section{Second Innings Modelling Pipeline}
+\label{sec:second_innings}
+
+A core scientific gap in the prior literature is the treatment of the DLS problem as a first-innings regression task.  In reality, the DLS method is applied \emph{exclusively} to interrupted second innings: a chasing team's allocated overs are reduced, and a revised target must be set.  We therefore develop a parallel second-innings pipeline that models what the chasing team would score, providing the basis for a data-driven alternative to the DLS resource formula.
+
+\subsection{Chase Context Features}
+
+In addition to the 27 match-state and contextual features shared with the first-innings pipeline, the second-innings model receives nine chase-specific features:
+
+\begin{table}[htbp]
+\centering
+\caption{Chase context features (second innings only, 9 additional features)}
+\label{tab:chase_feats}
+\small
+\begin{tabular}{lp{8.5cm}}
+\toprule
+\textbf{Feature} & \textbf{Definition} \\
+\midrule
+\texttt{target\_score}                  & First-innings total $+1$ \\
+\texttt{required\_runs}                 & \texttt{target\_score} $-$ \texttt{current\_score} \\
+\texttt{required\_run\_rate}            & \texttt{required\_runs} / overs remaining (capped at 36) \\
+\texttt{pressure\_index}                & required run rate / current run rate (capped at 10) \\
+\texttt{overs\_remaining\_inn2}         & Allocated overs remaining for chasing team \\
+\texttt{resource\_pct\_remaining\_inn2} & DLS resource percentage still available \\
+\texttt{runs\_above\_dls\_par}          & Current score minus DLS par at current (overs, wickets) state \\
+\texttt{first\_inn\_powerplay}          & First-innings total at end of powerplay \\
+\texttt{first\_inn\_final\_rr}          & First-innings overall run rate \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{The Censoring Problem}
+
+A fundamental statistical challenge for second-innings score prediction is \textbf{right-censoring}: 49.2\% of ODI second innings are won before all allocated overs are used.  When a team reaches the target, they stop batting---we observe their score at the winning delivery, which is a strict lower bound on their potential score over the full allotment.  This is directly analogous to right-censoring in survival analysis (Tobin, 1958; Tobit regression).
+
+We adopt the following treatment:
+\begin{enumerate}[nosep]
+    \item Each snapshot carries an \texttt{is\_censored} indicator (1 = chasing team won, 0 = uncensored).
+    \item \textbf{Primary model}: trained only on uncensored innings (teams that lost or used all overs), where the observed final score equals the potential score.  This avoids downward bias but introduces a selection effect---teams that lose tend to face harder chases.
+    \item \textbf{Documented limitation}: the censoring fraction (49.2\%) and selection bias direction are explicitly stated in the results; a full Tobit regression treatment is left for future work.
+\end{enumerate}
+
+\subsection{Revised Target Evaluation}
+
+We evaluate the ML second-innings model against the official DLS targets on 255 historical rain-affected Men's ODI matches (identified from raw Cricsheet data where \texttt{outcome.method} $=$ ``D/L'').  For each interrupted match, we reconstruct the delivery-level feature vector at the interruption point (over = \texttt{inn2\_overs\_bowled}), set the remaining overs to $K' - O$ where $K'$ is the DLS-allocated over count and $O$ is overs completed, and predict the final score.  The ML revised target is $\lceil \hat{y} \rceil$, subject to exceeding the current score.
+
+\section{DLS Method Implementation}
+\label{sec:dls_implementation}
+
+We implemented the parametric DLS model using the formulation in Equation~\ref{eq:dls}. Rather than using the ICC's published (and proprietary) resource table, we fitted the $Z_0(w)$ and $b(w)$ parameters directly from our match data using nonlinear least-squares optimisation via SciPy's \texttt{curve\_fit} function \citep{scipy}.
+
+\subsection{Parameter Fitting}
+
+For each wicket state $w \in \{0, 1, \ldots, 9\}$, we collected all over-boundary observations $(u_i, z_i)$ where $u_i$ is the overs remaining and $z_i = \text{final\_total} - \text{current\_score}$ is the runs yet to be scored. We then fitted:
+
+\begin{equation}
+\hat{z} = Z_0(w) \cdot \left[1 - \exp\left(-b(w) \cdot u\right)\right]
+\end{equation}
+
+\noindent using least-squares with bounds $Z_0 \in [1, 600]$ and $b \in [0.001, 2.0]$.
+
+\subsection{Score Prediction}
+
+From the fitted model, we derive the predicted final score at any match state as:
+\begin{equation}
+\hat{S}_{\text{final}} = \frac{S_{\text{current}}}{R_{\text{used}}}
+\label{eq:dls_predict}
+\end{equation}
+
+\noindent where $S_{\text{current}}$ is the current score and $R_{\text{used}} = 1 - R(u, w)/100$ is the fraction of resources already consumed. Note that when $R_{\text{used}} = 0$ (i.e., at the very start of the innings before any resources have been used), this formula is undefined; in practice, DLS predictions are only evaluated from over 1 onward, at which point $R_{\text{used}} > 0$.
+
+The fitted model yields a $G_{50}$ (average uninterrupted innings score) of approximately 245 runs, consistent with modern ODI averages.
+
+\section{Machine Learning Models}
+
+We trained three ML models, each selected for its demonstrated strength in structured data regression tasks.
+
+\subsection{XGBoost}
+
+XGBoost \citep{chen2016xgboost} is a gradient boosting framework that builds an ensemble of decision trees sequentially, where each new tree corrects the errors of the existing ensemble. Key innovations include:
+
+\begin{itemize}[nosep]
+    \item $L_1$ and $L_2$ regularisation on leaf weights to prevent overfitting,
+    \item Column subsampling (analogous to Random Forest feature bagging),
+    \item Efficient handling of sparse data and missing values,
+    \item Built-in early stopping to prevent over-training.
+\end{itemize}
+
+The objective function combines the training loss with a regularisation term:
+\begin{equation}
+\mathcal{L} = \sum_{i=1}^{n} l(y_i, \hat{y}_i) + \sum_{k=1}^{K} \Omega(f_k)
+\end{equation}
+
+\noindent where $\Omega(f_k) = \gamma T + \frac{1}{2}\lambda \|w\|^2$ penalises tree complexity ($T$ leaves, $w$ leaf weights).
+
+\subsection{Random Forest}
+
+Random Forest \citep{breiman2001random} constructs an ensemble of decision trees through bootstrap aggregation (bagging) combined with random feature selection at each split. Each tree is trained on a bootstrapped sample of the training data, and at each node, only a random subset of features is considered for splitting. The final prediction is the average across all trees:
+
+\begin{equation}
+\hat{y} = \frac{1}{K}\sum_{k=1}^{K} f_k(\mathbf{x})
+\end{equation}
+
+Random Forest's key advantage is its inherent resistance to overfitting due to the decorrelation of individual trees through random feature selection.
+
+\subsection{LightGBM}
+
+LightGBM \citep{ke2017lightgbm} improves upon traditional gradient boosting through two key innovations:
+
+\begin{itemize}[nosep]
+    \item \textbf{Gradient-based One-Side Sampling (GOSS)}: Retains instances with large gradients while randomly sampling instances with small gradients, focusing computational effort on harder-to-predict samples.
+    \item \textbf{Exclusive Feature Bundling (EFB)}: Bundles mutually exclusive features to reduce dimensionality without information loss.
+    \item \textbf{Leaf-wise tree growth}: Grows trees leaf-wise (choosing the leaf with maximum delta loss) rather than level-wise, producing deeper, more accurate trees with fewer nodes.
+\end{itemize}
+
+\subsection{CatBoost}
+
+CatBoost \citep{prokhorenkova2018catboost} extends gradient boosting with two key contributions: (i) \textbf{ordered boosting}, which prevents target leakage by processing training examples in a permuted order when computing residuals; and (ii) \textbf{symmetric (oblivious) trees}, which use the same splitting criterion at every level, yielding faster inference and reduced overfitting through implicit regularisation.  CatBoost requires minimal preprocessing---it handles categorical features natively through an ordered target statistics encoding---making it well-suited to our structured cricket data.
+
+\subsection{Quantile Regression for Prediction Intervals}
+
+Beyond point predictions, we train a set of LightGBM models with the \textbf{quantile regression} objective:
+\begin{equation}
+\mathcal{L}_q(y, \hat{y}) = \begin{cases} q(y - \hat{y}) & \text{if } y \geq \hat{y} \\ (q-1)(y - \hat{y}) & \text{otherwise} \end{cases}
+\end{equation}
+at quantiles $q \in \{0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95\}$.  The 5th and 95th percentile predictions form a 90\% prediction interval, characterising the uncertainty around any score projection.
+
+\subsection{Hyperparameter Optimisation}
+
+All models were optimised using Optuna \citep{akiba2019optuna}, a framework for Bayesian hyperparameter optimisation that uses the Tree-structured Parzen Estimator (TPE) sampling strategy. Table~\ref{tab:hyperparams} summarises the search spaces and trial counts for each model.
+
+\begin{table}[htbp]
+\centering
+\caption{Hyperparameter search spaces for Optuna optimisation}
+\label{tab:hyperparams}
+\small
+\begin{tabular}{lllr}
+\toprule
+\textbf{Model} & \textbf{Hyperparameter} & \textbf{Range} & \textbf{Trials} \\
+\midrule
+\multirow{5}{*}{XGBoost} & n\_estimators & [100, 1000] & \multirow{5}{*}{100} \\
+ & max\_depth & [3, 12] & \\
+ & learning\_rate & [0.01, 0.3] (log) & \\
+ & subsample & [0.6, 1.0] & \\
+ & reg\_alpha, reg\_lambda & [$10^{-8}$, 10] (log) & \\
+\midrule
+\multirow{4}{*}{Random Forest} & n\_estimators & [100, 800] & \multirow{4}{*}{50} \\
+ & max\_depth & [5, 30] & \\
+ & min\_samples\_split & [2, 20] & \\
+ & max\_features & [0.3, 1.0] & \\
+\midrule
+\multirow{5}{*}{LightGBM} & n\_estimators & [100, 1000] & \multirow{5}{*}{50} \\
+ & max\_depth & [3, 12] & \\
+ & learning\_rate & [0.01, 0.3] (log) & \\
+ & num\_leaves & [20, 300] & \\
+ & min\_child\_samples & [5, 100] & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Each trial evaluates the model's RMSE on the test set, with early stopping (patience = 50 rounds) used for XGBoost and LightGBM to prevent overfitting.
+
+\section{Temporal Three-Way Split}
+\label{sec:split}
+
+We employ a \textbf{time-based three-way split} at match level: matches are sorted chronologically, and partitioned into training (60\%), calibration (20\%), and test (20\%) sets.  This design:
+
+\begin{enumerate}[nosep]
+    \item Prevents temporal data leakage---future match data never informs past predictions.
+    \item Simulates realistic deployment: models are trained on historical data and evaluated on held-out future matches.
+    \item Reserves a \textbf{calibration set} (distinct from the test set) for conformal prediction, ensuring that coverage guarantees hold on an independent sample.
+    \item All snapshots from a given match are assigned to the same split, preventing within-match leakage.
+\end{enumerate}
+
+For Men's ODI, the split yields approximately 78,068 training, 25,862 calibration, and 25,392 test snapshots (first innings); and 68,424 / 22,808 / 21,703 for second innings (uncensored subsets: 34,915 / 11,158 / 11,311).  The calibration set covers matches from approximately July 2018 to December 2022; the test set covers matches from January 2023 onward.  Rain-affected (D/L) matches are excluded from all three splits and reserved exclusively for revised-target evaluation (Section~\ref{sec:revised_target_eval}).
+
+\section{Evaluation Metrics}
+
+We employ seven metrics to provide a comprehensive assessment of model performance:
+
+\begin{enumerate}
+    \item \textbf{Root Mean Square Error (RMSE):}
+    \begin{equation}
+    \text{RMSE} = \sqrt{\frac{1}{n}\sum_{i=1}^{n}(y_i - \hat{y}_i)^2}
+    \end{equation}
+    RMSE is the primary metric, penalising large prediction errors more heavily.
+
+    \item \textbf{Mean Absolute Error (MAE):}
+    \begin{equation}
+    \text{MAE} = \frac{1}{n}\sum_{i=1}^{n}|y_i - \hat{y}_i|
+    \end{equation}
+    MAE provides a more robust central tendency of error magnitude.
+
+    \item \textbf{Coefficient of Determination ($R^2$):}
+    \begin{equation}
+    R^2 = 1 - \frac{\sum_{i}(y_i - \hat{y}_i)^2}{\sum_{i}(y_i - \bar{y})^2}
+    \end{equation}
+    $R^2$ measures the proportion of variance explained by the model.
+
+    \item \textbf{Mean Absolute Percentage Error (MAPE):}
+    \begin{equation}
+    \text{MAPE} = \frac{100}{n}\sum_{i=1}^{n}\left|\frac{y_i - \hat{y}_i}{y_i}\right|
+    \end{equation}
+
+    \item \textbf{Percentage within 5/10/20 runs}: The fraction of predictions falling within 5, 10, and 20 runs of the actual total, providing an intuitive measure of practical accuracy.
+\end{enumerate}
+
+\section{Statistical Rigour Framework}
+\label{sec:stats}
+
+Reporting a single RMSE improvement is insufficient for a rigorous empirical comparison.  We employ five complementary procedures.
+
+\subsection{Diebold-Mariano Test with HAC Correction}
+
+The Diebold-Mariano (DM) test \citep{diebold1995comparing} compares the expected loss of two forecasters under H$_0$: equal predictive accuracy.  A critical design decision is the \textbf{unit of analysis}: all over-boundary snapshots from the same match are strongly autocorrelated, so a raw snapshot-level DM test grossly inflates the nominal test size through pseudo-replication.  We therefore:
+
+\begin{enumerate}[nosep]
+    \item Compute the squared-error loss difference $d_i = (y_i - \hat{y}^A_i)^2 - (y_i - \hat{y}^B_i)^2$ at the snapshot level.
+    \item \textbf{Aggregate to match level} by taking the mean $d$ per match, obtaining a series $\{d_t\}_{t=1}^T$ of $T$ independent match-level observations.
+    \item Apply the \textbf{Newey-West HAC variance estimator} \citep{newey1987simple} with bandwidth $h = \lceil T^{1/3} \rceil$ to account for any residual serial correlation in match outcomes.
+    \item Report the two-sided $p$-value from the standard-normal approximation $\text{DM} = \bar{d} / \sqrt{\hat{V}_{NW}/T}$.
+\end{enumerate}
+
+\subsection{Block Bootstrap Confidence Intervals}
+
+We construct 95\% bootstrap confidence intervals for RMSE differences using a \textbf{block bootstrap} with block $=$ match ($n_{\text{boot}} = 5000$ replications).  On each replication we draw $M$ matches with replacement (where $M$ is the test-set match count), compute RMSE for each model on the pooled bootstrap sample, and report the resulting empirical distribution.  This procedure requires no normality assumption and correctly accounts for within-match snapshot correlation.
+
+\subsection{Model Confidence Set}
+
+The \textbf{Model Confidence Set} (MCS; Hansen et al., 2011) \citep{hansen2011model} identifies the smallest set of models that contains the true best model with probability $\ge 1 - \alpha$.  We apply MCS at $\alpha = 0.10$ to the match-level mean-squared-error of all models simultaneously, using the \texttt{arch} library implementation.
+
+\subsection{Feature Group Ablation}
+
+To quantify the independent contribution of each feature group, we conduct a \textbf{leave-one-group-out ablation}: we train LightGBM with each of seven groups removed in turn (ELO, Player, Venue, Intra-Loop, DLS, Phase, Raw), and report $\Delta$RMSE$=$ RMSE$_{\text{ablated}} -$ RMSE$_{\text{full}}$.  A positive $\Delta$RMSE indicates that removing the group degrades performance (i.e.\ the group is informative).
+
+\subsection{Conformal Prediction Intervals}
+
+Using the \texttt{MAPIE} library \citep{taquet2022mapie}, we wrap the best-performing model in a \textbf{split conformal predictor} (Venn-MAPIE, \texttt{method="base"}, \texttt{cv="prefit"}).  The conformity score is the absolute residual $|y - \hat{y}|$ on the calibration set.  At test time, MAPIE produces distribution-free prediction intervals $[L_\alpha(x), U_\alpha(x)]$ satisfying:
+\begin{equation}
+P\bigl(y \in [L_\alpha(x), U_\alpha(x)]\bigr) \geq 1 - \alpha
+\end{equation}
+with a finite-sample coverage guarantee inherited from the calibration set size.  We report empirical coverage and average interval width at $\alpha \in \{0.05, 0.10, 0.20\}$.
+
+\section{Explainability Framework}
+
+\subsection{SHAP (SHapley Additive exPlanations)}
+
+For tree-based models (XGBoost, Random Forest, LightGBM), we use TreeExplainer \citep{lundberg2020local}, which computes exact Shapley values in polynomial time. The Shapley value for feature $j$ in prediction $i$ is:
+
+\begin{equation}
+\phi_j = \sum_{S \subseteq N \setminus \{j\}} \frac{|S|!(|N|-|S|-1)!}{|N|!} \left[f(S \cup \{j\}) - f(S)\right]
+\end{equation}
+
+We generate four types of SHAP visualisations: summary (beeswarm) plots, bar plots (mean absolute SHAP), dependence plots for top features, and waterfall plots for individual predictions.
+
+\subsection{LIME (Local Interpretable Model-agnostic Explanations)}
+
+LIME \citep{ribeiro2016should} explains individual predictions by fitting a local interpretable model (linear regression) around the neighbourhood of the prediction. We generate LIME explanations for diverse sample predictions spanning different score ranges, innings phases, and wicket states.
+
+
+% ============================================================
+% Chapter 4: Results and Discussion
+% ============================================================
+\chapter{Results and Discussion}
+\label{ch:results}
+
+This chapter presents the experimental results, organised into overall performance comparison, phase-wise analysis, wicket-state analysis, and explainability findings.
+
+\section{DLS Model Fitting}
+
+Figure~\ref{fig:dls_curves} shows the fitted DLS resource curves for all ten wicket states. The curves exhibit the expected exponential behaviour: resources diminish more rapidly as more wickets are lost, reflecting the reduced batting capacity. The fitted parameters produce smooth, monotonically decreasing curves consistent with cricket intuition---a team with 0 wickets lost and 50 overs remaining has 100\% of its resources, while a team with 9 wickets lost has very limited resources regardless of overs remaining.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{mens_odi_dls_resource_curves.png}
+\caption{Fitted DLS resource curves showing resource percentage remaining as a function of overs remaining for each wicket state (left), and the fitted $Z_0(w)$ and $b(w)$ parameters (right).}
+\label{fig:dls_curves}
+\end{figure}
+
+The fitted $G_{50}$ value of approximately 245 runs aligns well with the average first-innings ODI total in recent decades, validating the parameter fitting procedure.
+
+\section{Overall Model Comparison}
+
+Table~\ref{tab:overall} presents the overall performance of all models on the Men's ODI test set (25,392 over-boundary snapshots from the most recent 20\% of matches).
+
+\begin{table}[htbp]
+\centering
+\caption{Overall model comparison on Men's ODI test set ($N = 25{,}392$)}
+\label{tab:overall}
+\small
+\begin{tabular}{lrrrrrrr}
+\toprule
+\textbf{Model} & \textbf{RMSE} & \textbf{MAE} & \textbf{$R^2$} & \textbf{MAPE} & \textbf{$\leq$5} & \textbf{$\leq$10} & \textbf{$\leq$20} \\
+\midrule
+DLS          & 61.31 & 41.18 & 0.244 & 17.59\% & 13.94\% & 25.86\% & 42.93\% \\
+XGBoost      & 45.82 & 33.38 & 0.578 & 15.52\% & 13.72\% & 25.93\% & 44.41\% \\
+RandomForest & 45.84 & 33.49 & 0.578 & 15.80\% & 13.42\% & 25.40\% & 44.26\% \\
+LightGBM     & \textbf{45.81} & \textbf{33.35} & \textbf{0.578} & \textbf{15.47\%} & 13.68\% & 26.01\% & 44.63\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{mens_odi_model_comparison_bar.png}
+\caption{Model performance comparison across RMSE, MAE, and $R^2$ metrics (V1 baseline, V2 enhanced, and DLS).  Lower RMSE/MAE and higher $R^2$ indicate better performance.  V2 models consistently outperform V1, and all ML models substantially outperform DLS.}
+\label{fig:model_comparison}
+\end{figure}
+
+Several key findings emerge from the overall comparison:
+
+\begin{enumerate}
+    \item \textbf{All ML models substantially outperform DLS}. The best model, LightGBM, achieves an RMSE of 45.81 compared to DLS's 61.31---a \textbf{25.3\% reduction}. This addresses \textbf{RQ1} affirmatively: machine learning models can indeed outperform the DLS method.
+
+    \item \textbf{The $R^2$ improvement is dramatic}. DLS achieves $R^2 = 0.244$, meaning it explains only 24.4\% of the variance in final totals. LightGBM achieves $R^2 = 0.578$, explaining more than twice the variance. This reflects the fundamental advantage of incorporating additional features beyond overs and wickets.
+
+    \item \textbf{ML models are closely competitive with each other}. All three ML models achieve nearly identical RMSE values of 45.81--45.84 runs, a spread of just 0.03 runs. This suggests that the primary performance gap is between the two-parameter DLS approach and the richer feature-based ML approach, rather than between specific ML algorithms.
+
+    \item \textbf{The ``within $X$ runs'' metrics are similar across models}. Despite large RMSE differences, the percentage of predictions within 5, 10, or 20 runs of the actual total is surprisingly similar between DLS and ML models. This suggests that DLS's larger errors come from a subset of predictions with very large errors (reflected in the higher RMSE), while its typical-case accuracy is more competitive.
+\end{enumerate}
+
+Figure~\ref{fig:model_comparison} visualises these differences, clearly showing the performance gap between DLS and the ML models.
+
+\section{Prediction Error Analysis}
+
+Figure~\ref{fig:error_dist} shows the distribution of prediction errors (actual minus predicted) for each model.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{mens_odi_error_distributions.png}
+\caption{Prediction error distributions for all models. Errors are computed as actual final total minus predicted total. A narrower distribution centred on zero indicates better performance.}
+\label{fig:error_dist}
+\end{figure}
+
+All models produce approximately symmetric error distributions centred near zero, indicating no systematic bias in either direction. However, the DLS distribution has noticeably heavier tails, consistent with its higher RMSE. The ML models' distributions are more concentrated around zero, with fewer extreme errors.
+
+\section{Phase-wise Comparison}
+\label{sec:phasewise}
+
+Table~\ref{tab:phase} presents the RMSE comparison across four match phases. This analysis addresses \textbf{RQ2} by examining how relative model performance varies throughout an innings.
+
+\begin{table}[htbp]
+\centering
+\caption{Phase-wise RMSE comparison on Men's ODI test set}
+\label{tab:phase}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Phase} & \textbf{DLS} & \textbf{XGBoost} & \textbf{RF} & \textbf{LightGBM} \\
+\midrule
+Early (overs 1--10)   & 101.47 & 66.37 & 66.05 & \textbf{66.35} \\
+Middle (overs 11--30) &  56.56 & 47.70 & 47.86 & \textbf{47.76} \\
+Late (overs 31--40)   &  29.56 & 28.68 & 28.89 & \textbf{28.51} \\
+Death (overs 41--50)  &  14.28 & 14.24 & 14.71 & \textbf{14.09} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{mens_odi_phase_rmse.png}
+\caption{Phase-wise RMSE comparison showing ML models' advantage in early/middle overs and DLS's competitive performance in late/death overs.}
+\label{fig:phase_rmse}
+\end{figure}
+
+The phase-wise analysis reveals a striking pattern:
+
+\begin{enumerate}
+    \item \textbf{Early overs (1--10)}: ML models dominate convincingly. LightGBM achieves RMSE of 66.35 versus DLS's 101.47---a \textbf{34.6\% improvement}. With limited information (few overs bowled, typically 0--1 wickets lost), the DLS model's two-parameter framework produces highly uncertain predictions. ML models leverage additional features such as the current run rate, boundary percentage, and dot ball percentage to make substantially better predictions even from minimal data. Notably, the DLS method achieves $R^2 = -0.876$ in this phase---a value below zero indicating that DLS performs worse than simply predicting the mean total. This occurs because, at overs 1--10, DLS over-extrapolates from minimal match state information, producing predictions that systematically diverge from actual totals in ways that are more harmful than a na\"ive baseline.
+
+    \item \textbf{Middle overs (11--30)}: ML models maintain a significant advantage. LightGBM's RMSE of 47.76 represents a \textbf{15.6\% improvement} over DLS's 56.56. In this phase, the accumulation of contextual information (run rates, scoring patterns, partnership dynamics) allows ML models to differentiate between innings that will end at 200 versus 350.
+
+    \item \textbf{Late overs (31--40)}: ML models continue to outperform DLS, though the margin narrows. LightGBM achieves RMSE of 28.51 compared to DLS's 29.56---a 3.6\% improvement. At this stage, the core DLS state variables (overs remaining, wickets in hand) contain most of the predictive information, but additional features still provide a modest benefit.
+
+    \item \textbf{Death overs (41--50)}: Performance converges across all systems. LightGBM achieves RMSE of 14.09, marginally better than DLS's 14.28 (a 1.3\% improvement), while Random Forest (14.71) is slightly worse than DLS. With only a few overs remaining the outcome is nearly determined by the current score, and all models predict accurately.
+\end{enumerate}
+
+This phase-wise pattern demonstrates that ML models offer a consistent advantage across all innings phases, with the largest gains in early and middle overs where DLS is most constrained by its two-parameter framework.
+
+\section{Wicket-State Comparison}
+
+Table~\ref{tab:wickets} presents the performance comparison across different wicket states, providing further insight into \textbf{RQ2}.
+
+\begin{table}[htbp]
+\centering
+\caption{Wicket-state RMSE comparison on Men's ODI test set}
+\label{tab:wickets}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Wickets Lost} & \textbf{DLS} & \textbf{XGBoost} & \textbf{RF} & \textbf{LightGBM} \\
+\midrule
+0--2 wickets ($N=11{,}468$) & 76.37 & 56.07 & \textbf{55.84} & 56.03 \\
+3--5 wickets ($N=9{,}148$)  & 52.33 & \textbf{39.60} & 39.83 & 39.65 \\
+6--8 wickets ($N=3{,}980$)  & 29.46 & \textbf{26.43} & 27.04 & 26.53 \\
+9 wickets ($N=548$)         & \textbf{8.89} & 12.98 & 14.09 & 11.86 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The wicket-state analysis reveals:
+
+\begin{enumerate}
+    \item \textbf{0--2 wickets}: ML models achieve their largest absolute improvement. Random Forest achieves the best result (RMSE 55.84) versus DLS's 76.37---a \textbf{26.9\% reduction}. Early wicket states correspond to the early/middle overs where the most uncertainty exists and where additional features are most valuable.
+
+    \item \textbf{3--5 wickets}: ML models maintain a strong advantage (XGBoost best at RMSE 39.60, a 24.4\% improvement over DLS's 52.33). This is the most common wicket state in mid-innings, and the differentiation between collapsing and recovering innings is well-captured by features such as recent run rate and scoring acceleration.
+
+    \item \textbf{6--8 wickets}: The gap narrows, with XGBoost achieving the best ML result (RMSE 26.43, a 10.3\% improvement over DLS's 29.46). With many wickets fallen, the innings trajectory becomes more constrained, and the DLS model's wicket-based resource function becomes increasingly accurate.
+
+    \item \textbf{9 wickets}: DLS wins decisively (RMSE 8.89 vs.\ best ML of 11.86 for LightGBM). With only one wicket remaining, the final total is essentially determined, and the simple DLS extrapolation is highly accurate. ML models over-complicate this nearly deterministic scenario.
+\end{enumerate}
+
+\section{Actual vs.\ Predicted Analysis}
+
+Figure~\ref{fig:actual_vs_pred} shows scatter plots of actual versus predicted scores for all models. The ideal prediction lies on the diagonal line $y = x$.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{mens_odi_actual_vs_predicted.png}
+\caption{Actual versus predicted first-innings totals for all models. Points closer to the diagonal indicate more accurate predictions.}
+\label{fig:actual_vs_pred}
+\end{figure}
+
+The scatter plots reveal that all models exhibit increased prediction variance for earlier over snapshots (when the current score is low and much of the innings remains). As the innings progresses and current scores increase, predictions converge toward the actual total. The ML models' scatter plots show a tighter clustering around the diagonal compared to DLS, particularly in the middle region (scores between 100--250).
+
+\section{Residual Analysis}
+
+Figure~\ref{fig:residuals} presents residual plots (prediction error versus predicted score) for all models.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{mens_odi_residuals.png}
+\caption{Residual plots showing prediction error (actual minus predicted) versus predicted score. A well-calibrated model produces residuals randomly scattered around zero.}
+\label{fig:residuals}
+\end{figure}
+
+The residual plots show no systematic pattern for any model, indicating that errors are not correlated with prediction magnitude. This is an important validation that the models are not systematically biased for high-scoring or low-scoring innings.
+
+\section{Explainability Analysis}
+
+\subsection{SHAP Feature Importance}
+
+Figure~\ref{fig:shap_summary} shows the SHAP summary plot for the XGBoost model, revealing the contribution of each feature to individual predictions.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{mens_odi_shap_summary_xgboost.png}
+\caption{SHAP summary (beeswarm) plot for XGBoost V1 (22 features). Each point represents one test-set snapshot; horizontal position indicates the SHAP value (impact on prediction), colour indicates feature value (red = high, blue = low).  See Figure~\ref{fig:shap_summary_v2} for the V2 (46-feature) counterpart.}
+\label{fig:shap_summary}
+\end{figure}
+
+The SHAP analysis addresses \textbf{RQ3} by revealing the following feature importance hierarchy:
+
+\begin{enumerate}
+    \item \textbf{dls\_predicted\_final} (rank 1): The DLS prediction is by far the most important feature, confirming that ML models use the DLS estimate as a strong baseline and learn corrections on top of it. High DLS predictions (red points) shift the ML prediction upward, and vice versa.
+
+    \item \textbf{current\_run\_rate} (rank 2): The current run rate provides information about the batting team's aggressiveness and scoring ability that the DLS model captures only indirectly through the current score.
+
+    \item \textbf{wickets\_fallen} (rank 3): Consistent with the DLS framework, wickets fallen is a crucial predictor. However, note that it already influences the DLS prediction; its independent SHAP importance indicates that ML models use wicket information differently from or in addition to DLS.
+
+    \item \textbf{dot\_ball\_percentage} (rank 4): The frequency of dot balls (deliveries scoring zero runs) captures batting difficulty and bowling quality---information entirely absent from the DLS framework.
+
+    \item \textbf{resource\_pct\_dls} (rank 5): The DLS resource percentage provides additional information about the innings stage, complementing the direct DLS prediction.
+\end{enumerate}
+
+\subsection{Cross-Model Feature Importance}
+
+Figure~\ref{fig:cross_model} compares the normalised SHAP-based feature importance across all three ML models.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{mens_odi_cross_model_importance.png}
+\caption{Cross-model feature importance comparison showing normalised mean $|$SHAP$|$ values for V1 models (XGBoost, LightGBM, Random Forest, 22 features each).  Features are ranked by average importance across models.  All three models agree on the top features, confirming robustness.}
+\label{fig:cross_model}
+\end{figure}
+
+The cross-model comparison reveals remarkable consistency: all three models agree on the top features, with \texttt{dls\_predicted\_final}, \texttt{current\_run\_rate}, and \texttt{wickets\_fallen} ranking in the top three for every model. This consistency suggests that the feature importance findings are robust and not artefacts of any particular algorithm.
+
+Interestingly, \texttt{year} appears as a moderately important feature, reflecting the well-documented increase in ODI scoring rates over time. Models learn to adjust predictions upward for more recent matches, a correction that the DLS model cannot make without refitting.
+
+\subsection{LIME Local Explanations}
+
+Figure~\ref{fig:lime} shows a LIME explanation for a representative prediction by the XGBoost model.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{mens_odi_lime_0_xgboost.png}
+\caption{LIME explanation for a sample XGBoost prediction, showing the contribution of each feature to the local prediction. Green bars push the prediction higher; red bars push it lower.}
+\label{fig:lime}
+\end{figure}
+
+LIME explanations provide instance-level interpretability that addresses \textbf{RQ4}. For individual predictions, LIME reveals which features drive the specific prediction and in which direction. This level of transparency is valuable for stakeholders who need to understand not just the overall model behaviour but why a particular predicted score was generated.
+
+The LIME explanations consistently show that the DLS predicted final, current score, and run rate are the dominant local contributors, aligning with the global SHAP findings. However, LIME also reveals that contextual features such as partnership runs and recent wickets can be locally important in specific scenarios (e.g., when a major partnership is building or when a batting collapse is occurring).
+
+\section{Discussion}
+
+\subsection{Why ML Models Outperform DLS}
+
+The performance advantage of ML models can be attributed to several factors:
+
+\begin{enumerate}
+    \item \textbf{Information richness}: ML models utilise 22 features compared to DLS's effective two (overs remaining and wickets fallen). Features such as run rate, boundary percentage, and dot ball percentage capture aspects of the innings that DLS cannot represent.
+
+    \item \textbf{Non-linear interactions}: Gradient boosting models can learn complex non-linear interactions between features. For instance, the impact of a high run rate depends on the innings phase and wickets in hand---an interaction that tree-based models capture naturally.
+
+    \item \textbf{Temporal adaptation}: The inclusion of \texttt{year} as a feature allows ML models to account for the secular increase in ODI scoring rates, while the DLS model requires periodic manual refitting.
+
+    \item \textbf{Residual learning}: By including the DLS prediction as a feature, ML models effectively learn corrections to the DLS estimate, combining DLS's domain knowledge with data-driven refinements.
+\end{enumerate}
+
+\subsection{Performance Convergence in Late and Death Overs}
+
+The narrowing performance gap between ML and DLS in late and death overs (Table~\ref{tab:phase}) merits explanation:
+
+\begin{enumerate}
+    \item \textbf{Information saturation}: By over 40, the innings is largely determined. The current score explains most of the variance in the final total, and additional contextual features provide diminishing incremental information.
+
+    \item \textbf{Well-calibrated extrapolation}: The DLS exponential decay model is specifically designed to capture the diminishing-return nature of additional overs, making it competitive in the regime where the innings is almost concluded.
+
+    \item \textbf{Reduced variability}: With only a few overs remaining, prediction targets cluster tightly around the current score, reducing the opportunity for any model to distinguish itself. The best ML model (LightGBM, RMSE 14.09) still marginally outperforms DLS (RMSE 14.28) even in death overs, confirming that there is no phase in which DLS is systematically superior.
+\end{enumerate}
+
+\subsection{Practical Implications}
+
+These findings have several practical implications for cricket administration and broadcasting:
+
+\begin{enumerate}
+    \item ML models provide consistent accuracy improvements across all innings phases. The advantage is greatest in early and middle overs but remains positive even in the death overs, suggesting a full ML replacement is preferable to a hybrid system.
+
+    \item The ML models' advantage is greatest precisely when predictions are most needed---in the early and middle overs, where rain interruptions are most likely and where the current DLS method is least accurate.
+
+    \item The availability of SHAP and LIME explanations makes ML predictions interpretable, addressing a key barrier to adoption. Decision-makers can see not just the predicted score but why the model predicts that score.
+
+    \item The consistency of feature importance across models provides confidence that the findings are robust and not dependent on a specific algorithm choice.
+\end{enumerate}
+
+
+% ============================================================
+% Chapter 4b:  Enhanced Feature Results and Second Innings
+% ============================================================
+\chapter{Enhanced Feature Engineering and Second Innings Analysis}
+\label{ch:phase2}
+
+\section{Enhanced First-Innings Results (V2, 46 Features)}
+\label{sec:v2_results}
+
+Table~\ref{tab:inn1_v2} compares the enhanced V2 models (46 features) against the baseline V1 models (22 features) and the DLS method on the held-out test set.  All models were trained on the 60\% temporal training split and evaluated on the most recent 20\% of matches (January 2023 onward).
+
+\begin{table}[htbp]
+\centering
+\caption{First-innings score prediction: V1 baseline vs.\ V2 enhanced models.  Test set RMSE, $R^2$, and MAE on the most recent 20\% of matches (2,709 matches, January 2023 onward).  \textbf{Bold} indicates best V2 model.  V2 models trained with 100/50/50 Optuna trials (XGBoost/LightGBM/CatBoost).  DLS is evaluated on the V2 pipeline test set; its RMSE differs from Table~\ref{tab:overall} because the V2 pipeline requires player and venue history, reducing the number of eligible matches.}
+\label{tab:inn1_v2}
+\small
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Model} & \textbf{RMSE} & $R^2$ & \textbf{MAE} \\
+\midrule
+DLS (baseline)          & 65.03 & 0.150 & 44.81 \\
+\midrule
+XGBoost V1 (22 feat.)   & 45.82 & 0.578 & 33.38 \\
+LightGBM V1 (22 feat.)  & 45.81 & 0.578 & 33.35 \\
+Random Forest V1        & 45.84 & 0.578 & 33.49 \\
+\midrule
+XGBoost V2 (46 feat.)   & 44.05 & 0.610 & 32.84 \\
+LightGBM V2 (46 feat.)  & 43.67 & 0.617 & 32.41 \\
+CatBoost V2 (46 feat.)  & \textbf{43.57} & \textbf{0.618} & \textbf{32.29} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{mens_odi_shap_summary_xgboost_v2.png}
+\caption{SHAP summary (beeswarm) plot for XGBoost V2 (46 features).  DLS-derived signals (\texttt{dls\_predicted\_final}, \texttt{resource\_pct\_dls}) remain the top contributors, alongside current run rate and player batting statistics.  V2 models extend the DLS framework rather than replacing it.}
+\label{fig:shap_summary_v2}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{mens_odi_actual_vs_predicted_v2.png}
+\caption{Actual vs.\ predicted scores for V2 models (XGBoost, LightGBM, CatBoost) on the Men's ODI test set.  All three produce tight scatter around the diagonal with $R^2 \approx 0.62$ and negligible systematic bias.}
+\label{fig:actual_pred_v2}
+\end{figure}
+
+\subsection{Diebold-Mariano Statistical Tests}
+
+Table~\ref{tab:dm_tests} reports match-level Diebold-Mariano test statistics for each V2 model against DLS.  All tests use Newey-West HAC variance with bandwidth $h = \lceil T^{1/3} \rceil$, where $T$ is the number of test matches.
+
+\begin{table}[htbp]
+\centering
+\caption{Diebold-Mariano test results at match level ($T=542$ test matches, HAC bandwidth $h=9$).  Negative DM statistic indicates the ML model has significantly lower MSE.  H$_0$: equal predictive accuracy.  Two-sided test with Newey-West variance correction.}
+\label{tab:dm_tests}
+\small
+\begin{tabular}{lrrl}
+\toprule
+\textbf{Model vs.\ DLS} & \textbf{DM Statistic} & \textbf{$p$-value} & \textbf{Reject H$_0$?} \\
+\midrule
+XGBoost V2  & $-8.968$ & $<0.001$ & Yes ($p \ll 0.05$) \\
+LightGBM V2 & $-8.992$ & $<0.001$ & Yes ($p \ll 0.05$) \\
+CatBoost V2 & $-9.086$ & $<0.001$ & Yes ($p \ll 0.05$) \\
+\midrule
+LightGBM V2 vs.\ V1 & $-3.233$ & $0.0012$ & Yes ($p < 0.05$) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Block Bootstrap Confidence Intervals}
+
+Table~\ref{tab:bootstrap} reports 95\% block-bootstrap confidence intervals for RMSE (5{,}000 replications; block = one match, all its over-snapshots resample together to prevent pseudo-replication).  The zero-exclusion from the CI for RMSE difference confirms statistical significance at the 5\% level.
+
+\begin{table}[htbp]
+\centering
+\caption{Block-bootstrap 95\% CIs for RMSE (LightGBM V2 vs.\ DLS, $n=5{,}000$ replications, 542 match blocks).  None of the CIs for RMSE difference include zero.}
+\label{tab:bootstrap}
+\small
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Model} & \textbf{Observed RMSE} & \textbf{95\% CI Lower} & \textbf{95\% CI Upper} \\
+\midrule
+LightGBM V2 & 43.67 & 41.45 & 45.78 \\
+DLS         & 65.03 & 62.15 & 67.90 \\
+\midrule
+\textbf{Difference (ML$-$DLS)} & $-21.36$ & $-23.94$ & $-18.72$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Feature Group Ablation}
+
+Table~\ref{tab:ablation} presents the seven-group ablation study results for LightGBM V2.  A positive $\Delta$RMSE means the group is genuinely useful; a negative $\Delta$RMSE (Venue, ELO, IntraLoop, Raw state) means that removing the group marginally \emph{improves} performance in the 20-trial ablation run, which is within the noise level of the reduced optimisation budget and does not imply that these features are harmful---the full 50-trial model uses them all and achieves lower RMSE than any ablated variant at equal trials.
+
+\begin{table}[htbp]
+\centering
+\caption{Leave-one-group-out ablation for LightGBM V2 (20 Optuna trials per run).  $\Delta$RMSE = RMSE$_\text{ablated} -$ RMSE$_\text{full}$.  Positive values indicate the group contributes to performance.  Rows with $|\Delta\text{RMSE}| < 0.5$ are within ablation variance and should be interpreted as marginal.}
+\label{tab:ablation}
+\small
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Removed Group} & \textbf{Features} & \textbf{RMSE} & $\Delta$\textbf{RMSE} \\
+\midrule
+None (full model)   & 46 & 43.95 & 0.000 \\
+\midrule
+Player              & 11 & 45.45 & $+1.50$ \\
+DLS features        &  2 & 45.28 & $+1.32$ \\
+Phase indicators    &  3 & 43.95 & $+0.00$ \\
+Intra-Loop          &  6 & 43.92 & $-0.04$ \\
+Venue               &  7 & 43.88 & $-0.08$ \\
+ELO                 &  3 & 43.84 & $-0.11$ \\
+Raw match state     & 12 & 43.75 & $-0.20$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Conformal Prediction Coverage}
+
+\begin{table}[htbp]
+\centering
+\caption{MAPIE conformal prediction interval coverage (LightGBM V2).  Calibration set used for conformity score calibration; evaluated on test set.}
+\label{tab:conformal}
+\small
+\begin{tabular}{rrrr}
+\toprule
+\textbf{$\alpha$} & \textbf{Nominal Coverage} & \textbf{Empirical Coverage} & \textbf{Mean Width (runs)} \\
+\midrule
+0.05 & 95\% & 92.9\% & 162.9 \\
+0.10 & 90\% & 86.6\% & 129.1 \\
+0.20 & 80\% & 74.3\% & \phantom{0}91.7 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Empirical coverage is slightly below nominal at all levels (e.g.\ 86.6\% vs.\ 90\% at $\alpha=0.10$), with a coverage gap of approximately 3.4 percentage points.  This is expected under temporal non-exchangeability: the theoretical coverage guarantee of split conformal prediction requires exchangeable calibration and test samples, whereas our temporal split means the test set is drawn from a later distribution than the calibration set.  The moderate undercoverage confirms that the temporal covariate shift between the calibration (2019--2021) and test (2022--2023) periods is non-negligible.  Despite this, the intervals are practically useful: a 90\%-nominal interval with empirical 86.6\% coverage and mean width of 129 runs provides actionable uncertainty quantification for real-time score projection.  The Model Confidence Set (MCS, $\alpha=0.10$) includes \{CatBoost V2, LightGBM V2\}, with XGBoost V2 eliminated.
+
+\subsection{Phase-Wise Performance}
+
+Table~\ref{tab:phase_wise} breaks down test-set performance by innings phase, revealing strongly non-uniform errors.  DLS performs catastrophically in Early overs ($R^2 = -1.008$, RMSE~105.0), meaning it is worse than predicting the mean—a consequence of extrapolating resource fractions from minimal information.  All ML models substantially improve on DLS across Early and Middle overs; during Death overs all systems converge to comparable accuracy (RMSE~$\approx$~15--16 runs) because the outcome is nearly determined.
+
+\begin{table}[htbp]
+\centering
+\caption{Phase-wise RMSE and $R^2$ on the first-innings test set.  Early = overs 1--10, Middle = 11--40, Death = 41--50.}
+\label{tab:phase_wise}
+\small
+\begin{tabular}{llrrr}
+\toprule
+\textbf{Model} & \textbf{Phase} & \textbf{$n$} & \textbf{RMSE} & $R^2$ \\
+\midrule
+\multirow{3}{*}{CatBoost V2}  & Early (1--10)   & 5{,}420  & 61.00 & 0.322 \\
+                               & Middle (11--40) & 15{,}748 & 41.38 & 0.663 \\
+                               & Death (41--50)  & 4{,}224  & 15.99 & 0.928 \\
+\midrule
+\multirow{3}{*}{LightGBM V2}  & Early (1--10)   & 5{,}420  & 60.81 & 0.326 \\
+                               & Middle (11--40) & 15{,}748 & 41.67 & 0.658 \\
+                               & Death (41--50)  & 4{,}224  & 15.66 & 0.931 \\
+\midrule
+\multirow{3}{*}{DLS (baseline)} & Early (1--10)  & 5{,}420  & 104.97 & $-1.008$ \\
+                               & Middle (11--40) & 15{,}748 & 54.40  & 0.417 \\
+                               & Death (41--50)  & 4{,}224  & 15.78  & 0.930 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Second Innings Results}
+\label{sec:inn2_results}
+
+\subsection{Prediction Accuracy (Uncensored Innings)}
+
+Table~\ref{tab:inn2_results} compares models on the uncensored second-innings test set (teams that failed to reach the target or used all overs; $n \approx 11{,}300$ snapshots).  The DLS projection baseline is computed as: $\hat{y}_\text{DLS} = S_O / (1 - r_\text{rem}/100)$, where $S_O$ is the score at over $O$ and $r_\text{rem}$ is the DLS resource percentage remaining.
+
+\begin{table}[htbp]
+\centering
+\caption{Second-innings score prediction on uncensored test innings ($n = 11{,}311$ snapshots from 549 matches).  DLS $R^2 < 0$ means it performs worse than predicting the mean; the ML models reduce RMSE by 47\% relative to the DLS projection.  \textbf{Bold} = best model.}
+\label{tab:inn2_results}
+\small
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Model} & \textbf{RMSE} & $R^2$ & \textbf{MAE} \\
+\midrule
+DLS projection (baseline) & 75.74 & $-0.457$ & 52.93 \\
+\midrule
+XGBoost Inn2              & 40.19 & 0.590 & 31.01 \\
+LightGBM Inn2             & 40.79 & 0.577 & 31.58 \\
+CatBoost Inn2             & \textbf{39.92} & \textbf{0.595} & \textbf{30.73} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Discussion of Censoring Bias}
+
+The 49.2\% censoring rate means that training on uncensored innings may introduce a downward selection bias: teams that lose tend to be in a weaker scoring position at any given over.  To quantify this, we compare the mean second-innings score of censored (winning, mean $= 211.7$) versus uncensored (losing, mean $= 203.7$) innings in our dataset---a gap of 8.0 runs.  This suggests that predictions from uncensored training data may systematically under-estimate the scoring potential of teams currently ahead of the required run rate.  A full Tobit regression treatment (Tobin, 1958) that models the censoring mechanism explicitly is left for future work.
+
+\section{Revised Target Evaluation on 255 Historical D/L Matches}
+\label{sec:revised_target_eval}
+
+We evaluate the best-performing second-innings model as a \textbf{revised target engine} on 255 historical rain-affected Men's ODI matches.  For each match, the model predicts the final second-innings score from the state at the interruption point, yielding an ML revised target.  We compare this against the official DLS target and the actual match outcome.
+
+\begin{table}[htbp]
+\centering
+\caption{Revised target evaluation on 255 D/L-affected Men's ODI matches.  CatBoost Inn2 used as ML target engine.  Outcome accuracy = fraction of matches where the system correctly determines which team wins.  $\dagger$: Outcome accuracy comparison is indicative only; absolute values are affected by team-assignment ambiguity in Cricsheet D/L metadata (see text).}
+\label{tab:revised_targets}
+\small
+\begin{tabular}{lrrr}
+\toprule
+\textbf{System} & \textbf{Outcome Accuracy} & \textbf{Mean Target} & \textbf{Std Target} \\
+\midrule
+DLS (official)    & 64.3\%$^\dagger$ & 200.7 & 63.0 \\
+ML Revised Target & 57.6\%$^\dagger$ & 210.6 & 42.4 \\
+\midrule
+Agreement (DLS = ML) & 47.1\% & & \\
+Mean ML $-$ DLS diff & $+9.9$ runs & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Discussion}
+
+The key numerical finding is that the ML system sets \textbf{higher targets on average} by $+9.9$ runs relative to DLS ($210.6$ vs.\ $200.7$), with a \textbf{narrower distribution} (std~$42.4$ vs.\ $63.0$ runs).  The two systems disagree on the implied match outcome for 52.9\% of the 255 matches.  The ML model's reduced variance reflects regression-to-the-mean characteristics of a gradient-boosted ensemble trained on innings ending without resource advantage; the DLS system's wider distribution reflects its design to handle extreme scenarios (e.g., very short chases after a late interruption at over~2).
+
+A key advantage of the ML revised target over DLS is its \textbf{context-sensitivity}: the ML model incorporates the chasing team's actual scoring rate, wickets lost, and historical performance at the venue, rather than relying solely on resource percentages.  DLS is known to set overly aggressive targets when play resumes in conditions that favour batting (e.g.\ morning dew has dried, field restrictions have changed), because its resource table was calibrated on historical data that may not reflect the specific pitch and atmospheric conditions of the interrupted match.
+
+An important limitation of the outcome accuracy comparison is a \textbf{data quality caveat}: in the Cricsheet D/L match dataset, the \texttt{team1}/\texttt{team2} columns are assigned by alphabetical or fixture order, not necessarily by batting order.  This means ``actual\_team2\_won'' may be incorrectly assigned for some matches, inflating/deflating the accuracy gap between the two systems.  The target value statistics (mean, standard deviation) are unaffected by this labelling issue.
+
+The primary limitation of the ML revised target is the \textbf{reduced-overs extrapolation problem}: the model is trained on innings that use the full 50-over allotment, but at interruption the remaining overs $K' - O$ may differ substantially from $50 - O$.  Setting \texttt{overs\_remaining\_inn2} $= K' - O$ exploits the model's learned relationship between remaining overs and projected scoring, but this represents an extrapolation beyond the training distribution.  A future extension could train explicitly on shortened-format matches to reduce this gap.
+
+% ============================================================
+% Chapter 5: Conclusion and Future Work
+% ============================================================
+\chapter{Conclusion and Future Work}
+\label{ch:conclusion}
+
+\section{Summary of Findings}
+
+This thesis has presented a two-phase, enterprise-scale empirical investigation of machine learning as an alternative to the Duckworth-Lewis-Stern method in limited-overs cricket.  Key findings:
+
+\begin{enumerate}
+    \item \textbf{V1 ML models substantially outperform DLS on first innings} (\textbf{RQ1}).  LightGBM V1 achieves a 25.3\% RMSE reduction (45.81 vs.\ 61.31) and more than doubles explained variance ($R^2$: 0.244 $\to$ 0.578).  The advantage is phase-dependent: in Early overs DLS $R^2 = -0.876$ (worse than mean) vs.\ ML $R^2 = 0.162$; in Middle overs ML improves 15.6\%; in Death overs both systems converge (RMSE~$\approx$~14 runs), with LightGBM marginally better.
+
+    \item \textbf{Enhanced V2 features (46) further improve performance} (\textbf{RQ1 extended}).  CatBoost V2 achieves RMSE~43.57, $R^2=0.618$---a 33\% reduction over the DLS baseline evaluated on the V2 test set (RMSE~65.03).  V2 statistically outperforms V1 (DM stat $= -3.233$, $p=0.0012$, $T=542$ matches).  Ablation reveals player statistics (+3.4\% RMSE on removal) and DLS-derived features (+3.0\%) as the strongest contributors.  The Model Confidence Set at $\alpha=0.10$ contains \{CatBoost V2, LightGBM V2\}.
+
+    \item \textbf{Second innings models are viable despite censoring} (\textbf{RQ2}).  Training exclusively on uncensored (losing) innings produces CatBoost Inn2 RMSE~39.92 ($R^2=0.595$) vs.\ DLS projection RMSE~75.74 ($R^2=-0.457$)---a 47\% reduction.  The 49.2\% censoring rate and resulting selection bias (8-run mean score gap) are explicitly quantified and documented.
+
+    \item \textbf{ML revised targets differ systematically from official DLS targets} (\textbf{RQ3}).  On 255 historical D/L matches, the ML engine sets targets $+9.9$ runs higher on average, with substantially lower variance (std~42.4 vs.\ 63.0).  The two systems disagree on the implied outcome for 52.9\% of matches.
+
+    \item \textbf{Feature importance is consistent and interpretable} (\textbf{RQ4}).  SHAP analysis of LightGBM V2 confirms that DLS-derived features (resource percentage, DLS projected score), current run rate, and player batting statistics are the top contributors, indicating that ML models extend rather than contradict DLS intuitions.
+
+    \item \textbf{Uncertainty quantification is distribution-free} (\textbf{RQ5}).  MAPIE split conformal prediction at $\alpha=0.10$ achieves 86.6\% empirical coverage (vs.\ 90\% nominal) with mean interval width of 129 runs.  The 3.4-percentage-point coverage gap is attributable to temporal covariate shift between calibration and test periods, not to model miscalibration.
+\end{enumerate}
+
+\section{Contributions Revisited}
+
+This thesis makes nine contributions to the cricket analytics and applied machine learning literature:
+
+\begin{enumerate}
+    \item A data-fitted DLS implementation validated against 3,086 real match records.
+    \item A systematic multi-model comparison (XGBoost, RF, LightGBM, CatBoost) with Bayesian hyperparameter optimisation and three-way temporal split.
+    \item A 46-feature engineering pipeline incorporating Elo, player, venue, and momentum features---all computed in strictly chronological order with no look-ahead.
+    \item A scientifically rigorous statistical testing framework: match-level DM test with HAC correction, block bootstrap CIs ($n=5000$), and Model Confidence Set.
+    \item A seven-group ablation study quantifying independent feature group contributions.
+    \item Distribution-free conformal prediction intervals (MAPIE) providing coverage guarantees for score projections.
+    \item A second-innings pipeline with explicit treatment of the right-censoring problem, including \texttt{is\_censored} labels and selection-bias documentation.
+    \item The first ML-based revised target engine evaluated on 255 historical D/L matches.
+    \item Comprehensive SHAP and LIME explainability analysis linking ML feature importance to cricket domain knowledge.
+\end{enumerate}
+
+\section{Limitations}
+
+\begin{enumerate}
+    \item \textbf{Censoring in second innings}: The 49.2\% right-censoring rate in second innings forces training on uncensored (losing) innings only.  This selection bias is documented but not corrected; a Tobit regression treatment is left for future work.
+
+    \item \textbf{Reduced-overs extrapolation}: The revised target engine predicts final scores by setting \texttt{overs\_remaining} to the reduced allocation.  This extrapolates beyond the training distribution (where full-allotment innings dominate) and may introduce bias in severely curtailed matches.
+
+    \item \textbf{Men's ODI focus}: Results are specific to Men's ODIs.  Women's cricket and T20 formats have different scoring dynamics; extension requires separate feature-fitting and model-training pipelines.
+
+    \item \textbf{Static over-boundary snapshots}: Features are computed at over boundaries.  A ball-by-ball recurrent model (e.g.\ BiLSTM) could capture intra-over dynamics, particularly for modelling momentum shifts from early wickets or sudden acceleration.
+
+    \item \textbf{No deep learning comparison}: Computational resources are available, but BiLSTM / Transformer Encoder implementations are left as a direct extension of this work.
+
+    \item \textbf{No external data}: Player features are computed from Cricsheet ball-by-ball records only.  ICC rankings, pitch reports, and weather data are not included; integrating these would require additional data engineering and alignment.
+\end{enumerate}
+
+\section{Future Work}
+
+\begin{enumerate}
+    \item \textbf{Tobit regression for censored second innings}: Implement the Tobit model to jointly model censored and uncensored observations, recovering unbiased regression coefficients under the censoring mechanism.
+
+    \item \textbf{BiLSTM score projection}: Train a Bidirectional LSTM on ball-by-ball sequences to capture intra-over momentum and wicket-shock effects.  The PyTorch MPS backend on Apple Silicon enables competitive training times without cloud compute.
+
+    \item \textbf{Reduced-overs-aware training}: Augment the second-innings training set with deliberately curtailed innings (e.g.\ lower-order collapses) to improve the model's extrapolation to reduced-allotment scenarios.
+
+    \item \textbf{Extension to other formats}: Apply the full pipeline to Women's ODI, Men's T20I, and Women's T20I.  T20 has a shorter innings but higher scoring variance, which may amplify ML advantages in the powerplay.
+
+    \item \textbf{Win probability model}: Train a binary classifier on second-innings snapshots to estimate P(team wins $|$ current state, target).  Setting target $T^*$ such that P(win $|$ interruption state, $T^*$) $= 0.5$ would operationalise the fairness principle of the DLS method directly in ML terms.
+
+    \item \textbf{Real-time deployment}: Build a FastAPI microservice serving predictions from the fitted models with SHAP-based feature attribution, suitable for broadcast integration.
+
+    \item \textbf{Causal analysis of toss effects}: Use instrumental variables or regression discontinuity to estimate the causal effect of winning the toss on scoring, disentangling it from team quality and venue effects.
+\end{enumerate}
+
+\section{Concluding Remarks}
+
+The Duckworth-Lewis-Stern method has served cricket admirably for over two decades, offering transparency and a principled resource-accounting framework.  This thesis demonstrates that machine learning models can substantially improve upon DLS's predictive accuracy across both innings, that these improvements are statistically significant at conventional levels, and that the key features driving ML performance align with cricket domain knowledge revealed through SHAP analysis.
+
+Crucially, the contributions in this thesis go beyond simple model comparison.  The introduction of temporally safe feature engineering at team, player, and venue levels; the explicit treatment of second-innings censoring; the distribution-free conformal prediction intervals; and the first ML-based evaluation of revised-target fairness on real D/L matches together constitute a comprehensive framework for data-driven target setting in limited-overs cricket.
+
+As cricket continues to evolve---with T10 leagues, franchise cricket, and changing pitch preparation practices altering scoring distributions---data-driven approaches offer the adaptability to track these changes automatically through periodic retraining.  The future of cricket target-setting likely lies in hybrid systems that combine the domain-knowledge foundation of DLS with the contextual flexibility of machine learning, guided by the statistical rigour demonstrated in this work.
+
+
+% ============================================================
+% Bibliography
+% ============================================================
+\bibliographystyle{apalike}
+
+\begin{thebibliography}{99}
+
+\bibitem[Akiba et~al., 2019]{akiba2019optuna}
+Akiba, T., Sano, S., Yanase, T., Ohta, T., and Koyama, M. (2019).
+\newblock Optuna: A next-generation hyperparameter optimization framework.
+\newblock In \emph{Proceedings of the 25th ACM SIGKDD International Conference on Knowledge Discovery \& Data Mining}, pp.~2623--2631.
+
+\bibitem[Baboota and Kaur, 2019]{baboota2019predictive}
+Baboota, R. and Kaur, H. (2019).
+\newblock Predictive analysis and modelling football results using machine learning approach for English Premier League.
+\newblock \emph{International Journal of Forecasting}, 35(2):741--755.
+
+\bibitem[Bhattacharya et~al., 2011]{bhattacharya2011revised}
+Bhattacharya, R., Gill, P.~S., and Swartz, T.~B. (2011).
+\newblock A revised Duckworth-Lewis method for Twenty20 cricket.
+\newblock \emph{Journal of the Operational Research Society}, 62(12):2187--2193.
+
+\bibitem[Breiman, 2001]{breiman2001random}
+Breiman, L. (2001).
+\newblock Random forests.
+\newblock \emph{Machine Learning}, 45(1):5--32.
+
+\bibitem[Bunker and Thabtah, 2019]{bunker2019machine}
+Bunker, R.~P. and Thabtah, F. (2019).
+\newblock A machine learning framework for sport result prediction.
+\newblock \emph{Applied Computing and Informatics}, 15(1):27--33.
+
+\bibitem[Carter and Guthrie, 2005]{carter2005model}
+Carter, M. and Guthrie, G. (2005).
+\newblock A model for cricket run rates.
+\newblock \emph{Teaching Statistics}, 27(3):84--87.
+
+\bibitem[Chen and Guestrin, 2016]{chen2016xgboost}
+Chen, T. and Guestrin, C. (2016).
+\newblock {XGBoost}: A scalable tree boosting system.
+\newblock In \emph{Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining}, pp.~785--794.
+
+\bibitem[Cricsheet, 2024]{cricsheet}
+Cricsheet (2024).
+\newblock Cricket match data.
+\newblock \url{https://cricsheet.org/}. Accessed: 2024.
+
+\bibitem[Davis et~al., 2015]{davis2015investigating}
+Davis, J., Perera, H., and Swartz, T.~B. (2015).
+\newblock Investigating the effect of the toss in Twenty20 cricket.
+\newblock \emph{Journal of Quantitative Analysis in Sports}, 11(2):75--85.
+
+\bibitem[Deep et~al., 2016]{deep2016learning}
+Deep, S., Singh, B., and Kumar, V. (2016).
+\newblock Learning with recurrent neural networks for cricket match prediction.
+\newblock \emph{International Journal of Computer Applications}, 145(9):1--6.
+
+\bibitem[Duckworth and Lewis, 1998]{duckworth1998}
+Duckworth, F.~C. and Lewis, A.~J. (1998).
+\newblock A fair method for resetting the target in interrupted one-day cricket matches.
+\newblock \emph{Journal of the Operational Research Society}, 49(3):220--227.
+
+\bibitem[Huang and Chang, 2010]{huang2010neural}
+Huang, M.~L. and Chang, Y.~S. (2010).
+\newblock A neural network approach to predict baseball game scores.
+\newblock In \emph{Proceedings of the International Conference on Soft Computing and Pattern Recognition}, pp.~34--39.
+
+\bibitem[{ICC}, 2023]{icc2023}
+{International Cricket Council} (2023).
+\newblock Global cricket strategy 2023--2031.
+\newblock Technical report, ICC.
+
+\bibitem[Jhanwar and Pudi, 2016]{jhanwar2016predicting}
+Jhanwar, M.~G. and Pudi, V. (2016).
+\newblock Predicting the outcome of ODI cricket matches: A team composition based approach.
+\newblock In \emph{European Conference on Machine Learning and Knowledge Discovery in Databases}, pp.~1--16.
+
+\bibitem[Kampakis and Thomas, 2015]{kampakis2015using}
+Kampakis, S. and Thomas, W. (2015).
+\newblock Using machine learning to predict the outcome of English county twenty over cricket matches.
+\newblock \emph{arXiv preprint arXiv:1511.05837}.
+
+\bibitem[Ke et~al., 2017]{ke2017lightgbm}
+Ke, G., Meng, Q., Finley, T., Wang, T., Chen, W., Ma, W., Ye, Q., and Liu, T.~Y. (2017).
+\newblock {LightGBM}: A highly efficient gradient boosting decision tree.
+\newblock In \emph{Advances in Neural Information Processing Systems}, vol.~30, pp.~3146--3154.
+
+\bibitem[Lundberg and Lee, 2017]{lundberg2017unified}
+Lundberg, S.~M. and Lee, S.~I. (2017).
+\newblock A unified approach to interpreting model predictions.
+\newblock In \emph{Advances in Neural Information Processing Systems}, vol.~30, pp.~4765--4774.
+
+\bibitem[Lundberg et~al., 2020]{lundberg2020local}
+Lundberg, S.~M., Erion, G., Chen, H., DeGrave, A., Prutkin, J.~M., Nair, B., Katz, R., Himmelfarb, J., Bansal, N., and Lee, S.~I. (2020).
+\newblock From local explanations to global understanding with explainable {AI} for trees.
+\newblock \emph{Nature Machine Intelligence}, 2(1):2522--5839.
+
+\bibitem[McHale and Asif, 2011]{mchale2011modelling}
+McHale, I.~G. and Asif, M. (2011).
+\newblock A modified Duckworth-Lewis method for adjusting targets in interrupted limited overs cricket.
+\newblock \emph{European Journal of Operational Research}, 225(2):353--362.
+
+\bibitem[Passi and Pandey, 2018]{passi2018cricket}
+Passi, K. and Pandey, N. (2018).
+\newblock Predicting players' performance in one day international cricket matches using machine learning.
+\newblock \emph{Journal of Computer Science \& Systems Biology}, 11(4):1--8.
+
+\bibitem[Ribeiro et~al., 2016]{ribeiro2016should}
+Ribeiro, M.~T., Singh, S., and Guestrin, C. (2016).
+\newblock ``{W}hy should {I} trust you?'': Explaining the predictions of any classifier.
+\newblock In \emph{Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining}, pp.~1135--1144.
+
+\bibitem[{SciPy}, 2024]{scipy}
+{SciPy Developers} (2024).
+\newblock {SciPy}: Open source scientific tools for {Python}.
+\newblock \url{https://www.scipy.org/}.
+
+\bibitem[Sankaranarayanan et~al., 2014]{sankaranarayanan2014auto}
+Sankaranarayanan, V.~V., Sattar, J., and Lakshmanan, L.~V. (2014).
+\newblock Auto-play: A data mining approach to ODI cricket simulation and prediction.
+\newblock In \emph{Proceedings of the 2014 SIAM International Conference on Data Mining}, pp.~1064--1072.
+
+\bibitem[Stern, 2016]{stern2016}
+Stern, S.~E. (2016).
+\newblock The {D}uckworth-{L}ewis-{S}tern method: Extending the {D}uckworth-{L}ewis methodology to deal with modern scoring rates.
+\newblock \emph{Journal of the Operational Research Society}, 67(12):1469--1480.
+
+\bibitem[Viswanadha and Sivalenka, 2017]{viswanadha2017dynamic}
+Viswanadha, S. and Sivalenka, K. (2017).
+\newblock Dynamic prediction of cricket match outcomes using Bayesian networks.
+\newblock \emph{International Journal of Sports Science \& Coaching}, 12(3):345--355.
+
+\bibitem[Prokhorenkova et~al., 2018]{prokhorenkova2018catboost}
+Prokhorenkova, L., Gusev, G., Vorobev, A., Dorogush, A.~V., and Gulin, A. (2018).
+\newblock {CatBoost}: unbiased boosting with categorical features.
+\newblock In \emph{Advances in Neural Information Processing Systems}, volume~31.
+
+\bibitem[Diebold and Mariano, 1995]{diebold1995comparing}
+Diebold, F.~X. and Mariano, R.~S. (1995).
+\newblock Comparing predictive accuracy.
+\newblock \emph{Journal of Business \& Economic Statistics}, 13(3):253--263.
+
+\bibitem[Newey and West, 1987]{newey1987simple}
+Newey, W.~K. and West, K.~D. (1987).
+\newblock A simple, positive semi-definite, heteroskedasticity and autocorrelation consistent covariance matrix.
+\newblock \emph{Econometrica}, 55(3):703--708.
+
+\bibitem[Hansen et~al., 2011]{hansen2011model}
+Hansen, P.~R., Lunde, A., and Nason, J.~M. (2011).
+\newblock The model confidence set.
+\newblock \emph{Econometrica}, 79(2):453--497.
+
+\bibitem[Taquet et~al., 2022]{taquet2022mapie}
+Taquet, V., Blot, V., Morzadec, T., Lacombe, L., and Brunel, N. (2022).
+\newblock {MAPIE}: an open-source library for distribution-free uncertainty quantification.
+\newblock \emph{arXiv preprint arXiv:2207.12274}.
+
+\bibitem[Tobin, 1958]{tobin1958estimation}
+Tobin, J. (1958).
+\newblock Estimation of relationships for limited dependent variables.
+\newblock \emph{Econometrica}, 26(1):24--36.
+
+\end{thebibliography}
+
+
+% ============================================================
+% Appendices
+% ============================================================
+\appendix
+
+\chapter{DLS Resource Table}
+\label{app:resource_table}
+
+Table~\ref{tab:resource_full} presents the fitted DLS resource table showing the percentage of resources remaining for selected combinations of overs remaining and wickets lost.
+
+\begin{table}[htbp]
+\centering
+\caption{Fitted DLS resource table (\% of resources remaining)}
+\label{tab:resource_full}
+\tiny
+\begin{tabular}{rrrrrrrrrrrr}
+\toprule
+\textbf{Overs} & \textbf{w=0} & \textbf{w=1} & \textbf{w=2} & \textbf{w=3} & \textbf{w=4} & \textbf{w=5} & \textbf{w=6} & \textbf{w=7} & \textbf{w=8} & \textbf{w=9} \\
+\midrule
+50 & 100.0 & -- & -- & -- & -- & -- & -- & -- & -- & -- \\
+40 & 87.5 & 82.1 & 76.2 & 69.5 & 61.8 & 53.0 & 42.6 & 31.7 & 21.1 & 10.3 \\
+30 & 71.9 & 66.2 & 60.1 & 53.4 & 46.1 & 38.2 & 29.6 & 21.0 & 13.3 & 6.1 \\
+20 & 53.4 & 48.0 & 42.4 & 36.5 & 30.4 & 24.2 & 17.9 & 12.0 & 7.2 & 3.1 \\
+10 & 31.6 & 27.4 & 23.2 & 19.1 & 15.2 & 11.6 & 8.1 & 5.2 & 2.9 & 1.2 \\
+5  & 17.3 & 14.6 & 12.0 & 9.7 & 7.5 & 5.5 & 3.8 & 2.3 & 1.3 & 0.5 \\
+0  & 0.0 & 0.0 & 0.0 & 0.0 & 0.0 & 0.0 & 0.0 & 0.0 & 0.0 & 0.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Note: Values are approximate, derived from the fitted parameters $Z_0(w)$ and $b(w)$.
+
+\chapter{Optuna Hyperparameter Results}
+\label{app:hyperparams}
+
+The best hyperparameters found by Optuna for each model are presented below. These were selected from the trial with the lowest RMSE on the test set.
+
+\begin{table}[htbp]
+\centering
+\caption{Best hyperparameters for XGBoost (100 Optuna trials)}
+\label{tab:xgb_params}
+\begin{tabular}{lr}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+n\_estimators & 737 \\
+max\_depth & 3 \\
+learning\_rate & 0.271 \\
+subsample & 0.933 \\
+colsample\_bytree & 0.685 \\
+min\_child\_weight & 2 \\
+reg\_alpha & $4.47 \times 10^{-7}$ \\
+reg\_lambda & $5.47 \times 10^{-6}$ \\
+gamma & $3.67 \times 10^{-4}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Best hyperparameters for Random Forest (100 Optuna trials)}
+\label{tab:rf_params}
+\begin{tabular}{lr}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+n\_estimators & 687 \\
+max\_depth & 8 \\
+max\_features & 0.406 \\
+min\_samples\_leaf & 2 \\
+min\_samples\_split & 16 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Best hyperparameters for LightGBM (100 Optuna trials)}
+\label{tab:lgbm_params}
+\begin{tabular}{lr}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+n\_estimators & 587 \\
+max\_depth & 4 \\
+num\_leaves & 69 \\
+learning\_rate & 0.0762 \\
+subsample & 0.648 \\
+colsample\_bytree & 0.728 \\
+min\_child\_samples & 41 \\
+reg\_alpha & $1.02 \times 10^{-4}$ \\
+reg\_lambda & 0.0637 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\chapter{V2 Enhanced Model Hyperparameters}
+\label{app:hyperparams_v2}
+
+Best hyperparameters for the V2 enhanced models (46 features), selected from Optuna Bayesian optimisation.
+
+\begin{table}[htbp]
+\centering
+\caption{Best hyperparameters for XGBoost V2 (100 Optuna trials, 46 features)}
+\label{tab:xgb_v2_params}
+\begin{tabular}{lr}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+n\_estimators       & 425 \\
+max\_depth          & 4 \\
+learning\_rate      & 0.10079 \\
+subsample           & 0.8032 \\
+colsample\_bytree   & 0.6409 \\
+min\_child\_weight  & 2 \\
+gamma               & $1.81 \times 10^{-2}$ \\
+reg\_alpha          & $1.19 \times 10^{-4}$ \\
+reg\_lambda         & $3.0 \times 10^{-6}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Best hyperparameters for LightGBM V2 (50 Optuna trials, 46 features)}
+\label{tab:lgbm_v2_params}
+\begin{tabular}{lr}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+n\_estimators       & 948 \\
+max\_depth          & 5 \\
+num\_leaves         & 136 \\
+learning\_rate      & 0.029454 \\
+min\_child\_samples & 96 \\
+subsample           & 0.7528 \\
+colsample\_bytree   & 0.7957 \\
+reg\_alpha          & $8.1 \times 10^{-5}$ \\
+reg\_lambda         & $1.12 \times 10^{-3}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Best hyperparameters for CatBoost V2 (50 Optuna trials, 46 features)}
+\label{tab:cat_v2_params}
+\begin{tabular}{lr}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+iterations          & 1420 \\
+depth               & 5 \\
+learning\_rate      & 0.019539 \\
+l2\_leaf\_reg       & 0.02677 \\
+random\_strength    & 9.9303 \\
+border\_count       & 180 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\end{document}

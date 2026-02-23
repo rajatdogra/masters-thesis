@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Raw data (too large ~917MB)
+data/raw/
+
+# Trained models (binary pkl files, can be regenerated via scripts/train_v2_models.py)
+results/models/
+
+# CatBoost training logs
+catboost_info/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.lof
+*.lot
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+missfont.log
+
+# Claude memory (private)
+.claude/
+
+# macOS
+.DS_Store
+*.DS_Store
+
+# IDE
+.vscode/
+.idea/

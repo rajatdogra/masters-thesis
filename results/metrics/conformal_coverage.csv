@@ -1,0 +1,4 @@
+alpha,nominal_coverage,empirical_coverage,avg_interval_width,coverage_gap
+0.05,0.95,0.9289,162.87,-0.0211
+0.1,0.9,0.8657,129.07,-0.0343
+0.2,0.8,0.743,91.74,-0.057

@@ -1,0 +1,22 @@
+{
+  "mcs_set": [
+    "CatBoost_V2",
+    "LightGBM_V2"
+  ],
+  "included": [
+    "CatBoost_V2",
+    "LightGBM_V2"
+  ],
+  "excluded": [
+    "DLS",
+    "LightGBM_V1",
+    "XGBoost_V2"
+  ],
+  "all_pvalues": {
+    "DLS": 0.0,
+    "LightGBM_V1": 0.016,
+    "XGBoost_V2": 0.064,
+    "LightGBM_V2": 0.945,
+    "CatBoost_V2": 1.0
+  }
+}

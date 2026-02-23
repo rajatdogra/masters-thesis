@@ -1,0 +1,31 @@
+model,team,n,mae,bias,rmse
+LightGBM_V2,India,2193,31.94,-6.0,43.32
+LightGBM_V2,Bangladesh,2048,27.66,6.13,37.73
+LightGBM_V2,England,2034,33.15,-8.27,46.65
+LightGBM_V2,New Zealand,1800,31.99,-3.08,43.44
+LightGBM_V2,South Africa,1797,41.71,-12.02,56.91
+LightGBM_V2,Sri Lanka,1669,27.24,9.12,36.98
+LightGBM_V2,Australia,1586,33.52,1.14,46.36
+LightGBM_V2,United Arab Emirates,1365,35.14,7.81,44.95
+LightGBM_V2,Scotland,1314,34.97,-2.57,44.19
+LightGBM_V2,Ireland,1209,28.08,-8.88,38.92
+CatBoost_V2,India,2193,31.92,-7.19,43.22
+CatBoost_V2,Bangladesh,2048,27.44,4.73,37.07
+CatBoost_V2,England,2034,32.73,-6.64,46.2
+CatBoost_V2,New Zealand,1800,32.69,-2.54,44.41
+CatBoost_V2,South Africa,1797,43.14,-11.18,58.43
+CatBoost_V2,Sri Lanka,1669,27.76,11.04,37.5
+CatBoost_V2,Australia,1586,33.5,-1.52,46.41
+CatBoost_V2,United Arab Emirates,1365,33.75,7.08,43.78
+CatBoost_V2,Scotland,1314,34.95,-0.81,44.28
+CatBoost_V2,Ireland,1209,26.89,-9.62,37.57
+DLS,India,2193,47.6,-41.26,66.78
+DLS,Bangladesh,2048,36.41,-19.43,55.9
+DLS,England,2034,51.93,-44.81,73.88
+DLS,New Zealand,1800,47.08,-35.11,68.89
+DLS,South Africa,1797,56.64,-45.54,79.11
+DLS,Sri Lanka,1669,37.49,-21.77,54.45
+DLS,Australia,1586,50.24,-40.1,67.29
+DLS,United Arab Emirates,1365,35.75,-14.1,51.33
+DLS,Scotland,1314,48.08,-34.15,69.81
+DLS,Ireland,1209,36.95,-25.36,57.55

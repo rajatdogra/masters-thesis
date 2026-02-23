@@ -1,0 +1,8 @@
+group,n_removed,features_removed,rmse_full,rmse_ablated,delta_rmse,pct_change
+Player,11,"batter1_avg_30, batter1_sr_30, batter1_boundary_rate_30, batter1_innings_count, batter2_avg_30, batter2_sr_30, partnership_quality, current_bowler_economy_30, current_bowler_sr_30, batting_team_avg_score_5, bowling_team_avg_economy_5",43.9536,45.4521,1.4985,3.41
+DLS,2,"resource_pct_dls, dls_predicted_final",43.9536,45.2767,1.3232,3.01
+Phase,3,"is_powerplay, is_middle_overs, is_death_overs",43.9536,43.9536,0.0,0.0
+IntraLoop,6,"run_rate_std_5, wicket_rate_10, powerplay_score, run_rate_vs_venue, balls_per_boundary, manhattan_gradient",43.9536,43.9181,-0.0354,-0.08
+Venue,7,"venue_avg_score, venue_std_score, venue_avg_wickets_25, venue_boundary_rate, venue_high_score_rate, venue_matches_count, batting_at_home",43.9536,43.8762,-0.0773,-0.18
+ELO,3,"batting_team_elo, bowling_team_elo, elo_gap",43.9536,43.8396,-0.1139,-0.26
+Raw,12,"overs_completed, current_score, wickets_fallen, current_run_rate, recent_run_rate_5, boundary_percentage, dot_ball_percentage, partnership_runs, recent_wickets_5, cumulative_boundaries, cumulative_sixes, year",43.9536,43.7499,-0.2037,-0.46

@@ -1,0 +1,5 @@
+Model,Men's ODI,Men's T20I,Women's ODI,Women's T20I
+DLS,61.31,34.02,55.46,28.83
+LightGBM,45.81,24.34,45.69,22.3
+RandomForest,45.84,24.39,45.26,22.21
+XGBoost,45.82,24.29,45.24,22.22

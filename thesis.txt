@@ -1,0 +1,65 @@
+Research Proposal Summary
+Title: Evaluating the DLS Method and Machine Learning Approaches for
+Target Prediction in Interrupted Cricket Matches Using Explainable AI
+1. Introduction
+Cricket is a bat-and-ball sport played between two teams, typically in formats defined by a
+fixed number of overs per side. An “over” consists of six legal deliveries (“balls”). In limited-
+overs cricket (for example, One Day Internationals – ODIs, or Twenty20 matches), each team
+has a fixed number of overs in which to score as many runs as possible. When matches are
+interrupted—commonly by rain or other external conditions—the game administrators must
+adjust the target score (for the team batting second) in a way that is fair to both teams, given
+the reduced number of overs or changed conditions.
+The Duckworth-Lewis-Stern (DLS) method is the standard approach adopted by the In-
+ternational Cricket Council (ICC) and other cricket boards for revising target scores in rain-
+interrupted matches. It computes revised targets based on “resources” available to the teams
+— that is, overs remaining and wickets in hand — rather than simply applying a proportionate
+reduction in overs. The full methodology of the DLS system is described in the official ECB
+Duckworth-Lewis-Stern Methodology Document.
+While DLS has been widely accepted as a fair method, it is inherently rule-based and built
+on assumptions of average scoring patterns that may not incorporate all modern dynamics (such
+as changes in run-rates, evolving batting and bowling strategies, or T20 influences). In contrast,
+Machine Learning (ML) approaches offer the possibility to build predictive models based on
+large historical match-level data, capturing more complex interactions (such as pitch conditions,
+team momentum, or players’ recent form) and adapting over time. Furthermore, with the advent
+of Explainable AI (xAI), it is now possible to interpret ML model outputs to identify which
+variables most strongly influence predictions, thereby adding transparency to model outcomes.
+This research therefore aims to perform a comparative analysis of the DLS method versus
+ML-based predictive models for interrupted matches, and to apply xAI techniques to interpret
+which match variables drive the predictions. By doing so, it will assess whether ML-based
+methods can complement or even outperform the DLS method in terms of fairness and accu-
+racy, while providing interpretable insights for match officials, analysts, and cricket governing
+bodies.
+2. Research Objectives
+The primary objectives of this research are:
+1. To critically analyse the theoretical and statistical foundations of the DLS method.
+1
+2. To develop and train ML models (e.g., Gradient Boosting, Random Forests, Neural Net-
+works) for predicting revised targets and match outcomes under interrupted conditions.
+3. To compare the predictive performance of ML models against DLS using historical men’s
+One Day International (ODI) match data.
+4. To experimentally extend the analysis to women’s ODI and T20 matches to assess the
+generalisability of both DLS and ML-based approaches across formats and genders.
+5. To employ Explainable AI (xAI) methods—such as SHAP (SHapley Additive exPla-
+nations) and LIME (Local Interpretable Model-agnostic Explanations)—to identify and
+quantify key variables (e.g., run-rate, wickets lost, overs remaining, pitch conditions)
+influencing target predictions.
+3. Methodology
+This study will utilise historical men’s ODI match datasets as the primary data source, obtained
+from publicly available cricket databases such as ESPN Cricinfo and ICC archives. Additional
+experiments will be conducted on women’s ODI and T20 international match data to evaluate
+the adaptability of ML models and the robustness of the DLS method across different formats.
+Data preprocessing will involve normalization, handling of missing values, and feature engi-
+neering (e.g., context-aware variables such as momentum and pressure indices). ML models
+will be trained using cross-validation and evaluated using performance metrics such as RMSE,
+MAE, and R2. The interpretability of model predictions will be analysed using xAI metrics
+to ensure transparency and fairness. Comparative analysis will determine whether ML-based
+approaches can provide more accurate and equitable target adjustments than DLS.
+4. Expected Outcomes
+The research aims to demonstrate the potential of ML-based frameworks to enhance the fairness
+and accuracy of target predictions in interrupted matches. The inclusion of women’s ODI and
+T20 formats will offer broader insights into how model behaviour and variable importance
+differ across contexts. Additionally, the integration of xAI methods will provide transparency
+regarding the most influential match factors, supporting a data-driven alternative to the DLS
+method.
+5. Keywords: Cricket, DLS Method, Machine Learning, Explainable AI, SHAP, Target Pre-
+diction, Sports Analytics, ODI, T20.

@@ -1,0 +1,27 @@
+\begin{table}[htbp]
+\centering
+\caption{Wicket-state Model Comparison on Men's ODI Test Set}
+\label{tab:wicket_comparison}
+\begin{tabular}{lrrrrrrrrr}
+\toprule
+Model & Subset & RMSE & MAE & R2 & MAPE & Within_5 & Within_10 & Within_20 & N \\
+\midrule
+DLS & 0-2 wickets & 76.37 & 55.11 & -0.15 & 22.88 & 7.66 & 15.48 & 29.37 & 11468 \\
+XGBoost & 0-2 wickets & 56.07 & 42.86 & 0.38 & 18.96 & 8.98 & 17.97 & 33.50 & 11468 \\
+RandomForest & 0-2 wickets & 55.84 & 42.65 & 0.38 & 19.18 & 9.23 & 17.74 & 33.76 & 11468 \\
+LightGBM & 0-2 wickets & 56.03 & 42.84 & 0.38 & 18.90 & 8.89 & 18.12 & 33.79 & 11468 \\
+DLS & 3-5 wickets & 52.33 & 36.31 & 0.37 & 15.69 & 14.30 & 25.85 & 44.55 & 9148 \\
+XGBoost & 3-5 wickets & 39.60 & 29.66 & 0.64 & 14.04 & 13.51 & 26.63 & 46.64 & 9148 \\
+RandomForest & 3-5 wickets & 39.83 & 29.82 & 0.63 & 14.28 & 13.61 & 26.30 & 46.60 & 9148 \\
+LightGBM & 3-5 wickets & 39.65 & 29.70 & 0.64 & 14.06 & 13.29 & 26.44 & 46.49 & 9148 \\
+DLS & 6-8 wickets & 29.46 & 19.28 & 0.79 & 9.53 & 25.00 & 43.84 & 67.49 & 3980 \\
+XGBoost & 6-8 wickets & 26.43 & 19.30 & 0.83 & 10.78 & 23.09 & 40.58 & 62.51 & 3980 \\
+RandomForest & 6-8 wickets & 27.04 & 19.86 & 0.83 & 11.17 & 21.91 & 39.95 & 61.61 & 3980 \\
+LightGBM & 6-8 wickets & 26.53 & 19.31 & 0.83 & 10.79 & 23.02 & 40.48 & 62.71 & 3980 \\
+DLS & 9 wickets & 8.89 & 6.25 & 0.98 & 3.59 & 48.36 & 83.58 & 95.80 & 548 \\
+XGBoost & 9 wickets & 12.98 & 9.86 & 0.95 & 6.53 & 36.86 & 58.58 & 85.58 & 548 \\
+RandomForest & 9 wickets & 14.09 & 10.98 & 0.95 & 7.20 & 31.02 & 56.57 & 85.04 & 548 \\
+LightGBM & 9 wickets & 11.86 & 9.16 & 0.96 & 5.86 & 38.32 & 61.13 & 88.32 & 548 \\
+\bottomrule
+\end{tabular}
+\end{table}
