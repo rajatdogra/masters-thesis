@@ -1,0 +1,36 @@
+digraph pipeline {
+	graph [bgcolor=white dpi=220 fontname="Helvetica Neue,Helvetica,Arial,sans-serif" nodesep=0.45 pad=0.4 rankdir=TB ranksep=0.55 ratio=compress size="8.5,13" splines=ortho]
+	node [color="#2C3E50" fillcolor="#F7F9FC" fixedsize=false fontcolor="#1A1A2E" fontname="Helvetica Neue,Helvetica,Arial,sans-serif" fontsize=11 margin="0.18,0.12" penwidth=1.4 shape=box style="filled,rounded" width=6.5]
+	edge [arrowhead=vee arrowsize=0.8 color="#7F8C8D" penwidth=1.3]
+	raw [label=<<B>Data Collection</B><BR/><FONT COLOR="#7F8C8D" POINT-SIZE="9">3,500+ Men's ODI matches (2002–2026)  ·  Cricsheet ball-by-ball records</FONT>>]
+	proc [label=<<B>Data Processing</B><BR/><FONT COLOR="#7F8C8D" POINT-SIZE="9">129,322 first-innings snapshots  ·  112,935 second-innings  ·  49.2% right-censored</FONT>>]
+	feat [label=<<B>Feature Engineering  (V2 — 46 features)</B><BR/><FONT COLOR="#7F8C8D" POINT-SIZE="9">Match state · Player rolling stats · Elo ratings · Venue history · DLS-derived · Momentum</FONT>>]
+	split [label=<<B>Temporal Three-Way Split</B><BR/><FONT COLOR="#7F8C8D" POINT-SIZE="9">60% Train (pre-2018)   ·   20% Calibration (2018–2021)   ·   20% Test (2022–2026)</FONT>>]
+	subgraph cluster_branches {
+		rank=same style=invis
+		dls [label=<<B>DLS Baseline</B><BR/><FONT COLOR="#7F8C8D" POINT-SIZE="9">scipy.optimize fit<BR/>3,086 complete matches</FONT>> color="#2C3E50" fillcolor="#EAECEE" fontcolor="#1A1A2E" fontname="Helvetica Neue,Helvetica,Arial,sans-serif" fontsize=10.5 margin="0.15,0.12" penwidth=1.2 style="filled,rounded" width=2.8]
+		ml [label=<<B>ML Models</B><BR/><FONT COLOR="#7F8C8D" POINT-SIZE="9">XGBoost · LightGBM · CatBoost<BR/>Optuna Bayesian HPO</FONT>> color="#2C3E50" fillcolor="#EAECEE" fontcolor="#1A1A2E" fontname="Helvetica Neue,Helvetica,Arial,sans-serif" fontsize=10.5 margin="0.15,0.12" penwidth=1.2 style="filled,rounded" width=2.8]
+	}
+	ext [label=<<B>Extended Architectures</B><BR/><FONT COLOR="#7F8C8D" POINT-SIZE="9">Stacking Ensemble (Ridge meta-learner)  ·  Monotonic XGBoost  ·  Walk-Forward CV  (K=5)</FONT>>]
+	eval [label=<<B>Statistical Evaluation</B><BR/><FONT COLOR="#7F8C8D" POINT-SIZE="9">DM Test · Block Bootstrap · MCS · Bonferroni · Ablation · Conformal Prediction</FONT>>]
+	subgraph cluster_side {
+		rank=same style=invis
+		expl [label=<<B>Explainability</B><BR/><FONT COLOR="#7F8C8D" POINT-SIZE="9">SHAP (global &amp; local)<BR/>LIME (5 match cases)</FONT>> color="#2C3E50" fillcolor="#EAECEE" fontcolor="#1A1A2E" fontname="Helvetica Neue,Helvetica,Arial,sans-serif" fontsize=10.5 margin="0.15,0.12" penwidth=1.2 style="filled,rounded" width=2.8]
+		rain [label=<<B>Rain Match Evaluation</B><BR/><FONT COLOR="#7F8C8D" POINT-SIZE="9">255 D/L-affected matches<BR/>ML vs official DLS targets</FONT>> color="#2C3E50" fillcolor="#EAECEE" fontcolor="#1A1A2E" fontname="Helvetica Neue,Helvetica,Arial,sans-serif" fontsize=10.5 margin="0.15,0.12" penwidth=1.2 style="filled,rounded" width=2.8]
+	}
+	econ [label=<<B>Economic Impact Analysis</B><BR/><FONT COLOR="#7F8C8D" POINT-SIZE="9">Gini fairness · Expected Value of Information · Target bias · ICC prize context</FONT>>]
+	out [label=<<B>Results &amp; Conclusions</B><BR/><FONT COLOR="#7F8C8D" POINT-SIZE="9">CatBoost RMSE 43.57 (−33% vs DLS)  ·  All DM tests p&lt;0.001  ·  EV $1.27M/match</FONT>> color="#1A5276" fillcolor="#EBF5FB" fontcolor="#1A1A2E"]
+	raw -> proc
+	proc -> feat
+	feat -> split
+	split -> dls
+	split -> ml
+	dls -> ext
+	ml -> ext
+	ext -> eval
+	eval -> expl
+	eval -> rain
+	expl -> econ
+	rain -> econ
+	econ -> out
+}

@@ -1,0 +1,34 @@
+{
+  "XGBoost": {
+    "pearson_r": -0.3798,
+    "p_value": 0.5283,
+    "direction": "improving",
+    "rmse_min": 41.3992,
+    "rmse_max": 49.0607,
+    "rmse_range": 7.6615
+  },
+  "LightGBM": {
+    "pearson_r": -0.3341,
+    "p_value": 0.5826,
+    "direction": "improving",
+    "rmse_min": 41.4267,
+    "rmse_max": 48.6784,
+    "rmse_range": 7.2517
+  },
+  "CatBoost": {
+    "pearson_r": -0.5056,
+    "p_value": 0.3848,
+    "direction": "improving",
+    "rmse_min": 41.346,
+    "rmse_max": 48.8138,
+    "rmse_range": 7.4678
+  },
+  "DLS": {
+    "pearson_r": 0.1464,
+    "p_value": 0.8142,
+    "direction": "degrading",
+    "rmse_min": 55.6974,
+    "rmse_max": 79.9816,
+    "rmse_range": 24.2842
+  }
+}

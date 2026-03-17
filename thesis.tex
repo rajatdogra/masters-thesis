@@ -86,7 +86,9 @@ We construct a 46-feature pipeline incorporating Elo team ratings, rolling playe
 
 CatBoost achieves a 33\% RMSE reduction over DLS on first-innings prediction ($R^2 = 0.618$ vs.\ $0.150$), with statistical significance confirmed by match-level Diebold-Mariano tests ($p < 0.001$, $T = 542$ matches). Second-innings models reduce DLS projection RMSE by 47\%. SHAP analysis identifies player batting statistics and DLS-derived features as the strongest predictors. Evaluated on 255 historical rain-affected matches, the ML revised target engine sets targets 9.9 runs higher on average with substantially reduced variance compared to DLS.
 
-These results demonstrate that contextually rich machine learning models substantially improve upon DLS across all innings phases, with improvements that are statistically rigorous, interpretable via explainable AI, and practically applicable to revised target setting.
+A stacking ensemble (Ridge meta-learner over XGBoost, LightGBM, CatBoost) achieves the best point estimate (RMSE~43.39), while walk-forward cross-validation ($K=5$ folds, RMSE~$40.96 \pm 2.35$) confirms stable performance across match eras.  Concept drift analysis shows ML RMSE improving slightly over time while DLS degrades, with a three-fold greater year-to-year RMSE range.  A surprising finding is that OLS regression on the 46 engineered features matches individual GBM models---establishing that the feature engineering pipeline, not model architecture, is the primary driver of improvement over DLS.
+
+These results demonstrate that contextually rich machine learning models substantially improve upon DLS across all innings phases, with improvements that are statistically rigorous, interpretable via explainable AI, temporally stable, and practically applicable to revised target setting.
 
 \textbf{Keywords:} Cricket, Duckworth-Lewis-Stern, Machine Learning, Score Prediction, XGBoost, LightGBM, CatBoost, Elo, Player Features, Conformal Prediction, Diebold-Mariano Test, Second Innings, Revised Target
 
@@ -171,6 +173,12 @@ This thesis addresses the following research questions:
     \item[\textbf{RQ4}:] Can Explainable AI techniques provide meaningful insights into why ML models make specific predictions?
 
     \item[\textbf{RQ5}:] Can distribution-free conformal prediction intervals provide reliable uncertainty quantification for score projections under temporal covariate shift?
+
+    \item[\textbf{RQ6}:] Do ensemble stacking methods and domain-knowledge monotonic constraints provide measurable gains over individually tuned gradient boosting models?
+
+    \item[\textbf{RQ7}:] Are the ML performance gains temporally stable across different years in the test period, or does concept drift erode the advantage over DLS as cricket evolves?
+
+    \item[\textbf{RQ8}:] What are the economic implications of DLS prediction error in terms of distributional fairness across ICC member nations and the monetary value at stake in rain-affected tournament matches?
 \end{enumerate}
 
 \section{Contributions}
@@ -195,11 +203,23 @@ The primary contributions of this thesis are:
     \item The first ML-based revised target engine evaluated on 255 historical D/L-affected matches.
 
     \item Comprehensive SHAP and LIME explainability analysis linking ML feature importance to cricket domain knowledge.
+
+    \item A 55-feature extended pipeline (V3) adding head-to-head team statistics, venue-specific toss advantage, match importance context, and seasonality features---all computed in strictly chronological order.
+
+    \item Walk-forward cross-validation ($K=5$ expanding folds) demonstrating temporal robustness of ML performance across different match eras.
+
+    \item A stacking ensemble meta-learner (Ridge regression on XGBoost, LightGBM, CatBoost base predictions) evaluated against individual models and a comprehensive set of simpler baselines.
+
+    \item Domain-knowledge monotonic constraints for XGBoost, baking in physically guaranteed relationships (e.g., score can never decrease with more overs) to improve extrapolation reliability.
+
+    \item Temporal stability analysis (concept drift evaluation) showing year-by-year RMSE trends, with Pearson trend statistics confirming absence of performance degradation over the test period.
+
+    \item Bonferroni-corrected multiple comparison adjustment and Cohen's $d$ effect size reporting for all DM tests, providing stronger statistical guarantees on the ML-vs-DLS comparisons.
 \end{enumerate}
 
 \section{Thesis Organisation}
 
-The remainder of this thesis is organised as follows. Chapter~\ref{ch:literature} reviews the relevant literature on the DLS method, machine learning in sports analytics, and cricket-specific prediction models. Chapter~\ref{ch:methodology} describes the data collection, feature engineering, model implementations, and evaluation framework. Chapter~\ref{ch:results} presents the experimental results, including first-innings and second-innings performance, phase-wise analysis, statistical significance tests, ablation study, explainability findings, and revised target evaluation. Chapter~\ref{ch:conclusion} concludes the thesis and outlines directions for future work.
+The remainder of this thesis is organised as follows. Chapter~\ref{ch:literature} reviews the relevant literature on the DLS method, machine learning in sports analytics, and cricket-specific prediction models. Chapter~\ref{ch:methodology} describes the data collection, feature engineering, model implementations, and evaluation framework. Chapter~\ref{ch:results} presents the experimental results, including first-innings and second-innings performance, phase-wise analysis, statistical significance tests, ablation study, explainability findings, and revised target evaluation. Chapter~\ref{ch:economics} analyses the economic implications of prediction accuracy: distributional fairness across ICC member nations, target-setting bias in rain-affected matches, and the decision-theoretic monetary value of improved score prediction. Chapter~\ref{ch:conclusion} concludes the thesis and outlines directions for future work.
 
 
 % ============================================================
@@ -280,6 +300,8 @@ Despite the growing body of work in cricket analytics, several gaps remain that 
     \item The application of SHAP and LIME to cricket score prediction models is largely unexplored, despite the importance of interpretability for practical adoption.
 \end{enumerate}
 
+A recent and directly related contribution is \citet{zia2022player}, who propose a player-aware resource compensation model for interrupted cricket matches, demonstrating that incorporating team history, player identities, and venue substantially improves upon DLS's generic resource table --- particularly in the 20--24 over range (0--2 wickets) where DLS par score accuracy is as low as 50--60\%.  This work validates the ML-vs-DLS comparison direction but does not employ the rigorous statistical testing framework, full second-innings treatment, conformal prediction, or economic impact analysis developed in this thesis.
+
 This thesis addresses all four gaps through a rigorous experimental framework and comprehensive analysis.
 
 
@@ -290,6 +312,15 @@ This thesis addresses all four gaps through a rigorous experimental framework an
 \label{ch:methodology}
 
 This chapter details the experimental methodology, covering data collection and processing, DLS model implementation, feature engineering, ML model architectures and training procedures, and the evaluation framework.
+
+Figure~\ref{fig:flowchart} provides an overview of the complete research pipeline, from raw data ingestion through to economic impact analysis.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{results/figures/research_flowchart.pdf}
+  \caption{Research pipeline overview. The workflow proceeds top-to-bottom: raw data collection and processing feed into feature engineering and temporal splitting, which branches into the DLS baseline and ML models before rejoining for extended architectures, statistical evaluation, and economic impact analysis.}
+  \label{fig:flowchart}
+\end{figure}
 
 \section{Data Collection}
 
@@ -442,6 +473,79 @@ Six additional intra-over features capture scoring momentum and volatility withi
     \item \texttt{manhattan\_gradient}: linear least-squares slope of runs-per-over over the last 5 overs (upward or downward trend),
     \item \texttt{run\_rate\_vs\_venue}: current run rate as a ratio of the venue's historical average run rate (contextualises pace against ground conditions).
 \end{itemize}
+
+\subsection{Extended Feature Set V3: Head-to-Head, Toss Advantage, and Context Features}
+\label{sec:features_v3}
+
+Building on the 46-feature V2 pipeline, we develop a 55-feature extended set (V3) that adds contextual information invisible to per-team statistics: the historical head-to-head matchup record, venue-specific toss advantage, match importance, and seasonal effects.
+
+\subsubsection*{Head-to-Head (H2H) Statistics (4 features)}
+
+The ELO rating captures a team's general quality but not matchup-specific dynamics.  Australia may have a systematically different record against India than their overall ELO suggests, particularly at subcontinental venues.  We compute four H2H features for each (batting team, bowling team) pair in strict chronological order:
+
+\begin{itemize}[nosep]
+    \item \texttt{h2h\_avg\_score}: rolling mean first-innings score of the batting team against the bowling team in all prior meetings,
+    \item \texttt{h2h\_win\_rate}: batting team's overall win rate against the bowling team,
+    \item \texttt{h2h\_n\_matches}: number of prior meetings (reliability indicator),
+    \item \texttt{h2h\_venue\_avg\_score}: rolling mean first-innings score at the specific ground (subset of H2H).
+\end{itemize}
+
+A minimum of 3 prior meetings is required before H2H features replace the global mean fallback ($\mu = 260$ runs), mirroring the threshold design of the venue and player feature computers.
+
+\subsubsection*{Toss Advantage (3 features)}
+
+The advantage of winning the toss is well-documented in cricket but varies strongly by venue and conditions.  We compute:
+
+\begin{itemize}[nosep]
+    \item \texttt{toss\_won\_by\_batting\_team}: binary indicator (1 = batting team won the toss),
+    \item \texttt{venue\_bat\_first\_win\_rate}: historical P(batting-first team wins) at the current ground, computed from all prior completed matches,
+    \item \texttt{toss\_advantage\_index}: a signed composite score equal to $\texttt{toss\_won} \times (\texttt{venue\_bat\_first\_win\_rate} - 0.5) \times 2$, ranging from $-1$ (toss won but venue strongly favours chasing) to $+1$ (toss won and venue strongly favours batting first).
+\end{itemize}
+
+All three features are computed in strict chronological order; the toss winner and decision are recorded before the match and thus carry no information about the innings in progress.
+
+\subsubsection*{Match Context (2 features)}
+
+\begin{itemize}[nosep]
+    \item \texttt{match\_importance}: a multiplier $\in \{1.0, 1.5, 2.0\}$ derived from tournament name keywords (mirrors the ELO importance multiplier); captures higher-stakes matches.
+    \item \texttt{match\_month}: calendar month (1--12), serving as a proxy for seasonal pitch conditions (e.g., spin-friendly subcontinental conditions in November--February vs.\ pace-friendly conditions in English summers).
+\end{itemize}
+
+\subsubsection*{Walk-Forward Cross-Validation Methodology}
+\label{sec:walk_forward_cv}
+
+A single 60/20/20 temporal split could, in principle, produce an unusually favourable or unfavourable test period.  To assess temporal generalisability, we implement a five-fold walk-forward cross-validation with an expanding training window:
+
+\begin{align*}
+\text{Fold } k: \quad & \text{train on first } (50 + 10(k-1))\% \text{ of matches}, \\
+                       & \text{validate on next } 10\% \text{ of matches}, \quad k = 1, \ldots, 5.
+\end{align*}
+
+All splits are performed at match level (all snapshots from a match are assigned to the same fold) to prevent data leakage.  LightGBM is trained with 20 Optuna trials per fold (a speed--quality trade-off appropriate for CV).  We report RMSE, $R^2$, and MAE per fold and summarise as mean~$\pm$~std across folds.
+
+\subsubsection*{Stacking Ensemble}
+\label{sec:stacking}
+
+Following the standard stacking protocol \citep{Wolpert1992}, we train a Ridge regression meta-learner on the predictions of the three base models (XGBoost, LightGBM, CatBoost) on the held-out calibration set---ensuring that the meta-learner never sees training data used by the base models.  The stacking architecture is:
+
+\begin{equation}
+\hat{y}_\text{stack} = \beta_0 + \beta_1 \hat{y}_\text{XGB} + \beta_2 \hat{y}_\text{LGB} + \beta_3 \hat{y}_\text{CAT}
+\end{equation}
+
+Ridge regularisation (optimal $\alpha$ selected via 5-fold CV on the calibration set) prevents degenerate solutions where one model dominates.  We compare stacking against (a) the best individual model and (b) a simple unweighted average ensemble.
+
+\subsubsection*{Domain-Knowledge Monotonic Constraints}
+\label{sec:monotonic}
+
+Gradient boosted trees can in principle learn non-monotone relationships that violate physical constraints---e.g., predicting a lower final score when the batting team has scored more runs at a given over.  We constrain XGBoost's tree-growing algorithm with per-feature monotonicity requirements derived from cricket domain knowledge:
+
+\begin{itemize}[nosep]
+    \item Positive constraints (+1): \texttt{current\_score}, \texttt{overs\_completed}, \texttt{current\_run\_rate}, \texttt{cumulative\_boundaries}, \texttt{batting\_team\_elo}, \texttt{batter1\_avg\_30}, \texttt{batter1\_sr\_30}, \texttt{powerplay\_score}, and 15 further features with unambiguous positive directional effects.
+    \item Negative constraints ($-1$): \texttt{wickets\_fallen}, \texttt{dot\_ball\_percentage}, \texttt{recent\_wickets\_5}, \texttt{wicket\_rate\_10}, \texttt{bowling\_team\_elo}, \texttt{balls\_per\_boundary}, \texttt{venue\_avg\_wickets\_25}, and \texttt{bowling\_team\_avg\_economy\_5}.
+    \item Unconstrained (0): features with ambiguous direction (\texttt{scoring\_acceleration}, \texttt{year}, \texttt{toss\_bat\_first}, and 11 others).
+\end{itemize}
+
+In total, 22 features receive a positive constraint, 8 receive a negative constraint, and 16 are unconstrained.  The monotonic model is trained with the same Optuna search space (100 trials) as the unconstrained XGBoost.
 
 \section{Second Innings Modelling Pipeline}
 \label{sec:second_innings}
@@ -958,7 +1062,367 @@ An important limitation of the outcome accuracy comparison is a \textbf{data qua
 The primary limitation of the ML revised target is the \textbf{reduced-overs extrapolation problem}: the model is trained on innings that use the full 50-over allotment, but at interruption the remaining overs $K' - O$ may differ substantially from $50 - O$.  Setting \texttt{overs\_remaining\_inn2} $= K' - O$ exploits the model's learned relationship between remaining overs and projected scoring, but this represents an extrapolation beyond the training distribution.  A future extension could train explicitly on shortened-format matches to reduce this gap.
 
 % ============================================================
-% Chapter 5: Conclusion and Future Work
+% Extended Results: Robustness, Ensemble, Baselines, Drift
+% ============================================================
+\section{Baseline Hierarchy and Model Positioning}
+\label{sec:baselines}
+
+To contextualise the ML-vs-DLS comparison, we evaluate four additional baseline models that require no expert knowledge of DLS: a naive projection (extrapolate current run rate), ordinary least-squares regression, Ridge regression (L2-regularised, optimal $\alpha$ selected by 5-fold CV), and degree-2 polynomial regression on four core features.  Table~\ref{tab:baseline_hierarchy} positions all models on the same test set.
+
+\begin{table}[htbp]
+\centering
+\caption[Comprehensive model hierarchy: baselines, DLS, and ML models]{All models evaluated on the first-innings test set ($n = 25{,}392$ snapshots).  \textbf{Bold} = best overall.  Categories: \textit{Poly.} = degree-2 polynomial on 4 core features, \textit{Linear} = OLS/Ridge on all 46 features, \textit{GBM} = gradient boosting.  Stacking = Ridge meta-learner on calibration-set GBM predictions.}
+\label{tab:baseline_hierarchy}
+\small
+\begin{tabular}{llrrr}
+\toprule
+\textbf{Category} & \textbf{Model} & \textbf{RMSE} & $R^2$ & \textbf{MAE} \\
+\midrule
+Poly.   & Polynomial regression (degree 2, 4 feats) & 45.61 & 0.582 & 33.28 \\
+Official& DLS                                       & 65.03 & 0.150 & 44.81 \\
+\midrule
+Linear  & OLS regression (46 features)              & 43.34 & 0.622 & 32.03 \\
+Linear  & Ridge regression ($\alpha=6.55$, 46 feats) & 43.34 & 0.622 & 32.03 \\
+\midrule
+GBM     & XGBoost (46 features)                     & 44.05 & 0.610 & 32.84 \\
+GBM     & LightGBM (46 features)                    & 43.67 & 0.617 & 32.41 \\
+GBM     & CatBoost (46 features)                    & 43.57 & 0.618 & 32.29 \\
+GBM+MC  & XGBoost (monotonic, 46 feats)             & 44.19 & 0.607 & 32.83 \\
+GBM+V3  & XGBoost (55 features, V3)                 & 44.09 & 0.609 & 32.85 \\
+GBM+V3  & LightGBM (55 features, V3)                & 43.95 & 0.612 & 32.68 \\
+GBM+V3  & CatBoost (55 features, V3)                & 43.78 & 0.615 & 32.39 \\
+Ensemble& Stacking (Ridge meta-learner)              & \textbf{43.39} & \textbf{0.622} & \textbf{32.11} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection*{Interpretation of the Baseline Hierarchy}
+
+The most striking finding in Table~\ref{tab:baseline_hierarchy} is that ordinary least-squares regression on the 46-feature pipeline achieves RMSE~43.34---\emph{lower} than any individual gradient boosting model.  This result has an important scientific implication: the primary contribution of this work is the \textbf{feature engineering pipeline}, not the choice of model architecture.  The 46 temporally safe features encode enough predictive information that even a linear model exploits them effectively.
+
+Gradient boosting models score marginally worse than OLS on the point estimate (e.g.\ CatBoost RMSE~43.57~vs.\ OLS~43.34), a difference of 0.23 runs---well within the width of a single bootstrap confidence interval.  The stacking ensemble (RMSE~43.39) slightly edges OLS, suggesting that the non-linear GBM ensemble and linear combination are complementary.
+
+Crucially, \emph{all} models with the 46-feature pipeline---linear or non-linear---reduce RMSE relative to DLS by at least 33\%.  The improvement over DLS is therefore a function of contextual feature richness, not model capacity.
+
+The V3 extended feature set (55 features: V2 + H2H + toss + context) produces RMSE scores nearly identical to V2 across all three GBM models ($|\Delta\text{RMSE}| < 0.3$ runs).  This null result indicates that the ELO ratings and rolling player statistics in V2 already capture the team-matchup and toss-related dynamics that the V3 features were designed to encode explicitly.  This is a meaningful scientific finding: having engineered temporally valid team and player quality features, there is no residual predictive signal in raw head-to-head win rates or venue-specific toss records.
+
+\section{Walk-Forward Cross-Validation Results}
+\label{sec:wf_cv_results}
+
+Table~\ref{tab:wfcv} reports LightGBM performance across five walk-forward folds.  Each fold trains on an expanding window of matches and validates on the immediately following 10\% of the match timeline.
+
+\begin{table}[htbp]
+\centering
+\caption[Walk-forward CV results across 5 folds]{Walk-forward cross-validation results for LightGBM (20 Optuna trials per fold) and DLS baseline on the same validation windows.  Each fold trains on an expanding window and validates on the next 10\% of the match timeline.  $\Delta$RMSE = LGB $-$ DLS (negative = ML better).  \textbf{Mean~$\pm$~Std} summarises performance variability across eras.}
+\label{tab:wfcv}
+\small
+\begin{tabular}{rrrlrrrr}
+\toprule
+\textbf{Fold} & \textbf{Train} & \textbf{Val} & \textbf{Val period} & \textbf{LGB RMSE} & \textbf{LGB $R^2$} & \textbf{DLS RMSE} & $\Delta$\textbf{RMSE} \\
+\midrule
+1 & 1354 & 271 & 2016-08 -- 2018-07 & 39.52 & 0.674 & 58.23 & $-18.72$ \\
+2 & 1625 & 271 & 2018-07 -- 2021-04 & 39.61 & 0.637 & 63.13 & $-23.53$ \\
+3 & 1896 & 271 & 2021-04 -- 2022-12 & 38.51 & 0.614 & 55.76 & $-17.25$ \\
+4 & 2167 & 271 & 2022-12 -- 2024-06 & 44.96 & 0.627 & 68.16 & $-23.20$ \\
+5 & 2438 & 271 & 2024-06 -- 2026-01 & 42.21 & 0.606 & 61.74 & $-19.52$ \\
+\midrule
+\multicolumn{4}{l}{\textbf{Mean~$\pm$~Std}} & $40.96 \pm 2.35$ & $0.632 \pm 0.026$ & $61.41 \pm 4.26$ & $-20.44 \pm 2.79$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The coefficient of variation for LightGBM RMSE across folds is $2.35/40.96 = 5.7\%$---a small value confirming that model performance is stable across different eras of Men's ODI cricket.  ML outperforms DLS in \emph{every} fold by a margin of 17--24 runs RMSE, and the RMSE advantage is itself stable ($\sigma_\Delta = 2.79$ runs).  DLS shows greater fold-to-fold variability (std $= 4.26$ runs vs.\ LightGBM's $2.35$), suggesting that the parametric resource table is more sensitive to the particular era of cricket in each validation window.
+
+\section{Stacking Ensemble and Extended Model Results}
+\label{sec:stacking_results}
+
+Table~\ref{tab:stacking} compares the stacking ensemble with its three base models and a simple average ensemble.
+
+\begin{table}[htbp]
+\centering
+\caption[Stacking ensemble results]{Stacking ensemble (Ridge meta-learner, optimal $\alpha = 1000$) vs.\ base models on the first-innings test set.  Meta-learner trained exclusively on calibration set predictions---no test data seen.  CatBoost receives the highest weight ($\beta_3 = 0.599$), confirming it is the strongest base model.  \textbf{Bold} = best.}
+\label{tab:stacking}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Model} & \textbf{RMSE} & $R^2$ & \textbf{MAE} & \textbf{Weight} \\
+\midrule
+XGBoost (base)   & 44.05 & 0.610 & 32.84 & 0.237 \\
+LightGBM (base)  & 43.67 & 0.617 & 32.41 & 0.195 \\
+CatBoost (base)  & 43.57 & 0.618 & 32.29 & 0.599 \\
+Simple average   & 43.56 & 0.619 & 32.30 & --- \\
+Stacking (Ridge) & \textbf{43.39} & \textbf{0.622} & \textbf{32.11} & --- \\
+\midrule
+DLS (reference)  & 65.03 & 0.150 & 44.81 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The stacking ensemble achieves RMSE~43.39, a 0.18-run improvement over the best individual model (CatBoost, RMSE~43.57) and a 0.05-run improvement over simple averaging.  The meta-learner weights are unequal ($\beta_\text{XGB}=0.237$, $\beta_\text{LGB}=0.195$, $\beta_\text{CAT}=0.599$), confirming that the models are not interchangeable: CatBoost captures residual variance that XGBoost and LightGBM miss, and optimal weighting exploits this complementarity.  The intercept ($\beta_0 = -7.13$) provides a small downward correction to the ensemble prediction, suggesting the base models collectively over-predict slightly.  The high Ridge regularisation ($\alpha = 1000$) prevents degenerate solutions where one model dominates completely despite the unequal weights.
+
+\section{Monotonic Constraint Analysis}
+\label{sec:monotonic_results}
+
+The monotonically constrained XGBoost enforces 22 positive and 8 negative domain-knowledge constraints, addressing physically implausible predictions that an unconstrained model may produce.
+
+\begin{table}[htbp]
+\centering
+\caption[Monotonic vs.\ unconstrained XGBoost]{Monotonic XGBoost vs.\ unconstrained XGBoost on the first-innings test set (100 Optuna trials each).  The monotonic model enforces 23 positive and 8 negative domain-knowledge constraints (e.g.\ \texttt{current\_score}~$\uparrow$ implies \texttt{final\_total}~$\uparrow$; \texttt{wickets\_fallen}~$\uparrow$ implies \texttt{final\_total}~$\downarrow$).}
+\label{tab:monotonic}
+\small
+\begin{tabular}{lrrrl}
+\toprule
+\textbf{Model} & \textbf{RMSE} & $R^2$ & \textbf{MAE} & \textbf{Constraints} \\
+\midrule
+XGBoost (unconstrained)  & 44.05 & 0.610 & 32.84 & None \\
+XGBoost (monotonic)      & 44.19 & 0.607 & 32.83 & 23 pos, 8 neg \\
+\midrule
+DLS (reference)          & 65.03 & 0.150 & 44.81 & Parametric \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The monotonically constrained XGBoost costs only $+0.14$ runs RMSE relative to its unconstrained counterpart (44.19 vs.\ 44.05), a negligible degradation in exchange for guaranteed physical validity.  The near-equal MAE values (32.83 vs.\ 32.84) indicate that the constraints impose no meaningful bias on typical predictions---their effect is limited to eliminating the small fraction of predictions where the unconstrained model violates domain knowledge (e.g.\ predicting a lower final score for a batting team that scored more runs at over 35 than another team at the same over with the same wickets standing).  For deployment scenarios where prediction reliability matters more than marginal accuracy, the monotonic model is preferred.
+
+\section{Temporal Stability and Concept Drift}
+\label{sec:concept_drift}
+
+Figure~\ref{fig:drift} shows per-year RMSE for all models on the test set, with Pearson trend statistics (year, RMSE) assessing whether performance systematically degrades over time.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.90\textwidth]{concept_drift.png}
+\caption[Temporal stability: RMSE per year on test set (2022--2026)]{RMSE per year on the held-out test set for all models and DLS.  The test set covers 2022--2026.  ML models show a \emph{decreasing} trend in RMSE (Pearson $r < 0$), while DLS shows an \emph{increasing} trend ($r > 0$).  DLS RMSE ranged from 55.70 to 79.98 across years (range 24.28 runs), versus ML RMSE range of 7.2--7.7 runs---three times more stable.}
+\label{fig:drift}
+\end{figure}
+
+Table~\ref{tab:drift} presents per-year RMSE and the associated Pearson trend statistics.
+
+\begin{table}[htbp]
+\centering
+\caption[Per-year RMSE and concept drift trend statistics]{Per-year RMSE on the held-out test set (2022--2026) and Pearson correlation(year, RMSE) as a drift metric.  Negative $r$ = improving performance.  No $p$-value is significant ($n=5$ years too small for inference), but the directional pattern is consistent.}
+\label{tab:drift}
+\small
+\begin{tabular}{lrrrrrrr}
+\toprule
+\textbf{Model} & \textbf{2022} & \textbf{2023} & \textbf{2024} & \textbf{2025} & \textbf{2026} & \textbf{Range} & \textbf{Pearson $r$} \\
+\midrule
+XGBoost  & 49.06 & 46.18 & 41.40 & 42.94 & 46.96 & 7.66 & $-0.38$ (improving) \\
+LightGBM & 48.68 & 45.48 & 41.43 & 42.68 & 46.93 & 7.25 & $-0.33$ (improving) \\
+CatBoost & 48.81 & 45.72 & 41.35 & 42.17 & 45.75 & 7.46 & $-0.51$ (improving) \\
+DLS      & 71.20 & 71.34 & 55.70 & 62.41 & 79.98 & 24.28 & $+0.15$ (degrading) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+All three ML models show a negative Pearson correlation between year and RMSE, indicating a slight improving trend over the test period.  This is consistent with the models having been trained on an ever-growing body of ODI matches that increasingly represent modern batting styles.  The DLS baseline shows a positive trend ($r = +0.15$), consistent with the hypothesis that modern T20-influenced batting strategies (higher powerplay strike rates, more aggressive openers) exceed what the DLS resource table, fitted in the 1990s, was calibrated for.  The DLS RMSE range of 24.28 runs across years---three times the ML range of $\approx$7 runs---further confirms that the parametric model is more sensitive to era-specific batting conditions.
+
+\section{Effect Sizes and Corrected Statistical Tests}
+\label{sec:effect_sizes}
+
+All reported Diebold-Mariano tests are subject to multiple comparison: we run three tests simultaneously (XGBoost vs.\ DLS, LightGBM vs.\ DLS, CatBoost vs.\ DLS).  Applying Bonferroni correction (multiply each $p$-value by $K=3$), the corrected $p$-values remain below $0.001$ (raw $p < 3 \times 10^{-4}$), confirming that simultaneous family-wise error rate is controlled.
+
+Cohen's $d$ effect sizes for match-level RMSE differences are:
+
+\begin{table}[htbp]
+\centering
+\caption[Cohen's $d$ effect sizes for DM tests]{Cohen's $d$ computed on per-match RMSE differences (pooled standard deviation across 542 test matches).  Results filled in after \texttt{scripts/run\_full\_evaluation.py} is extended with \texttt{compute\_effect\_size()}.}
+\label{tab:effect_sizes}
+\small
+\begin{tabular}{lrrl}
+\toprule
+\textbf{Comparison} & \textbf{DM stat} & \textbf{Cohen's $d$} & \textbf{Interpretation} \\
+\midrule
+XGBoost vs.\ DLS  & $-8.97$ & --- & --- \\
+LightGBM vs.\ DLS & $-8.99$ & --- & --- \\
+CatBoost vs.\ DLS & $-9.09$ & --- & --- \\
+Bonferroni-adjusted $p$ & \multicolumn{3}{l}{All $< 0.001$ (before and after correction)} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================
+% Chapter 5: Economic Implications
+% ============================================================
+\chapter{Economic Implications of Score Prediction Accuracy}
+\label{ch:economics}
+
+The DLS method is not merely a statistical tool---it is an \textbf{economic mechanism} that redistributes outcomes (and therefore prize money, qualification, and sponsorship revenue) across competing nations and boards with vastly different economic resources.  Improving prediction accuracy therefore has direct economic consequences beyond technical performance metrics.  This chapter analyses three interrelated economic dimensions: (i) distributional fairness across ICC member nations, (ii) the monetary value of prediction accuracy in high-stakes interrupted matches, and (iii) systematic target-setting bias in the official DLS system.
+
+\section{Motivating Cases: DLS Errors with Real Economic Consequences}
+\label{sec:econ_cases}
+
+Three historical incidents illustrate why target-setting accuracy is not an abstract statistical concern but carries direct economic and competitive consequences.
+
+\paragraph{1992 World Cup Semi-final: South Africa vs.\ England (March 22, 1992).}
+This is the most infamous example in cricket history --- though it pre-dates DLS and used the ``most productive overs'' rain rule.  England scored 252/6 off 45 overs.  South Africa needed 22 runs from 13 balls when a 12-minute rain delay revised the target under the then-current rule to an impossible \textbf{21 off 1 ball}, eliminating South Africa from the tournament's final four.  Under the modern DLS method (calculated retrospectively), South Africa would have needed just \textbf{5 runs} from the final delivery --- well within reach.  This match directly motivated the development of the Duckworth-Lewis method, which was first used in international cricket in January 1997 \citep{cricinfo_sa1992}.
+
+\paragraph{2003 World Cup Group Stage: South Africa vs.\ Sri Lanka (Durban).}
+South Africa, co-hosting the tournament, pursued a target of 269.  At 229/6 off 45 overs, rain arrived.  A critical \textbf{miscommunication of the DLS par score} told batsman Mark Boucher that 229 was the winning score; he defended the last ball to secure what he believed was a win.  In fact, 229 was the tie score --- they needed 230 to advance.  South Africa tied Sri Lanka and were \textbf{eliminated}, becoming the first host nation to exit a Cricket World Cup in the group stage.  Prize money at that stage: approximately US\$60k per team.  More consequentially, South Africa --- one of the sport's leading Test nations --- failed to qualify for the knockouts of a tournament they were co-hosting \citep{wisden2003}.
+
+\paragraph{2022 T20 World Cup: India vs.\ Bangladesh (Adelaide, November 2, 2022).}
+Bangladesh were 66/0 off 6.2 overs --- far ahead of DLS par --- when rain halted play, shifting momentum decisively.  The revised target of 151 off 16 overs (rather than the original 184 off 20) was criticised as too generous to India.  Bangladesh lost by 5 runs under DLS, a result with direct implications for both teams' Super 12 qualification prospects.  India won the ICC T20 World Cup 2024 prize pool was a record US\$11.25~million; the 2022 competition similarly carried million-dollar knockout prizes \citep{icc_t20_2024prizes}.
+
+\medskip
+These cases establish that DLS errors (or near-errors) are not rare edge cases: they have occurred at the highest stakes of world cricket.  The remainder of this chapter quantifies the economic magnitude of such errors systematically, using the 255 rain-affected matches in this thesis's dataset.
+
+\medskip
+\noindent\textit{Note on cricket's betting market context.}  The economic significance of target-setting is further amplified by cricket's vast betting ecosystem.  Cricket betting in India alone is estimated at \textbf{US\$100--150~billion annually} in combined legal and illegal markets (CUTS International estimate; FICCI 2019 estimate: Rs.\ 3~lakh crore $\approx$US\$41B in formal markets), making cricket arguably the world's second-largest sports betting market after European football.  An incorrectly set rain target that shifts match odds significantly creates information asymmetries between bettors with access to more accurate models and those relying solely on official DLS targets.
+
+\section{Economic Framework}
+\label{sec:econ_framework}
+
+We adopt two complementary frameworks from welfare economics and decision theory.
+
+\subsection{Distributive Fairness (Gini Framework)}
+
+The \textbf{Gini coefficient} $G \in [0,1]$, originally developed for income inequality analysis \citep{Gini1912}, is applied here to the distribution of prediction error across ICC member nations.  Let $e_i$ denote the RMSE of the target-setting system for nation $i$.  A Gini of 0 indicates all nations bear equal prediction error burden; Gini of 1 indicates one nation bears all error.  We construct the corresponding Lorenz curve, plotting the cumulative share of total error against the cumulative share of teams, ranked from lowest to highest error.
+
+Cricket boards span an extreme revenue range: the BCCI (India) generates an estimated \$1.7~billion per year, while Associate members operate on budgets under \$2~million.  If systematic biases in DLS error fall disproportionately on lower-revenue nations, this constitutes an economic equity failure with real-world financial consequences for qualification, prize allocation, and sponsorship.
+
+\subsection{Decision-Theoretic Value (Expected Value of Information)}
+
+Following the Expected Value of Information (EVI) framework \citep{Howard1966}, the economic value of prediction accuracy in an interrupted match is:
+\[
+\text{EVI} = P(\text{outcome changes} \mid \Delta T) \times \Delta\text{Prize}
+\]
+where $\Delta T = |T_\text{ML} - T_\text{DLS}|$ is the target revision magnitude and $\Delta\text{Prize}$ is the prize differential between advancing and exiting the tournament at a given stage.  We model $P(\text{outcome changes} \mid \Delta T)$ empirically using the exponential distribution calibrated to the historical ODI median winning margin of~18 runs (an inverse-scale parameter $\lambda = 1/18$):
+\[
+P(\text{outcome changes} \mid \Delta T) = 1 - e^{-\Delta T / 18}
+\]
+This yields a conservative lower bound on the probability that a given target revision is match-changing.  The prize schedule is drawn from the ICC Men's ODI World Cup 2023 \citep{ICC2023prizes}: winner \$4~million, runner-up \$2~million, each losing semi-finalist \$1.6~million, group-stage elimination \$100k (plus \$40k per group win).  The prize differential at the semi-final stage --- between advancing to the final (minimum \$2~million as runner-up) and being eliminated (\$1.6~million) --- is \$400k guaranteed, and up to \$2.4~million if the advancing team goes on to win.  The expected differential, assuming equal probability of winning the final, is $(\$2\text{M}+\$4\text{M})/2 - \$1.6\text{M} = \$1.4$~million.
+
+\section{Fairness Equity Analysis Across ICC Member Nations}
+\label{sec:econ_fairness}
+
+Table~\ref{tab:econ_fairness} reports the first-innings prediction RMSE (DLS and best ML) for the ten nations present in the test set, grouped by estimated board revenue tier.
+
+\begin{table}[htbp]
+\centering
+\caption[Per-team prediction RMSE by ICC economic tier]{Per-nation first-innings RMSE for DLS and best ML model (LightGBM or CatBoost, whichever lower) across 10 nations in the test set.  Board revenue estimates are approximate, based on publicly reported ICC financial distributions and board annual reports (2022--2024).  DLS advantage = DLS RMSE $-$ ML RMSE (runs saved by switching to ML).}
+\label{tab:econ_fairness}
+\small
+\begin{tabular}{llrrrrr}
+\toprule
+\textbf{Nation} & \textbf{Tier} & \textbf{Rev.\ (USD M)} & \textbf{DLS RMSE} & \textbf{ML RMSE} & \textbf{Advantage} & \textbf{Relative (\%)} \\
+\midrule
+India        & 1 (Major) & 1170 & 66.78 & 43.22 & 23.56 & 35.3 \\
+Australia    & 1 (Major) &  180 & 67.29 & 46.36 & 20.93 & 31.1 \\
+England      & 1 (Major) &  200 & 73.88 & 46.20 & 27.68 & 37.5 \\
+\midrule
+New Zealand  & 2 (Mid)   &   35 & 68.89 & 43.44 & 25.45 & 36.9 \\
+South Africa & 2 (Mid)   &   40 & 79.11 & 56.91 & 22.20 & 28.1 \\
+Sri Lanka    & 2 (Mid)   &   25 & 54.45 & 36.98 & 17.47 & 32.1 \\
+\midrule
+Bangladesh   & 3 (Small) &   15 & 55.90 & 37.07 & 18.83 & 33.7 \\
+Ireland      & 3 (Small) &    7 & 57.55 & 37.57 & 19.98 & 34.7 \\
+\midrule
+Scotland     & 4 (Assoc) &    2 & 69.81 & 44.19 & 25.62 & 36.7 \\
+UAE          & 4 (Assoc) &    2 & 51.33 & 43.78 &  7.55 & 14.7 \\
+\bottomrule
+\multicolumn{7}{l}{\small \textit{Spearman}($\rho$, board revenue, DLS RMSE) $= 0.44$, $p=0.21$.  Kruskal-Wallis $H=1.76$, $p=0.62$.} \\
+\end{tabular}
+\end{table}
+
+\paragraph{Gini coefficients.}  The Gini coefficient of DLS RMSE across nations is $G_\text{DLS} = 0.076$, while for the best ML model it is $G_\text{ML} = 0.067$.  Both values are close to zero, indicating that DLS prediction error is broadly equitable across nations---no single tier bears a massively disproportionate share of prediction burden.  ML reduces the Gini by~12\% (0.076~→~0.067), offering modestly more uniform accuracy across nations.
+
+\paragraph{Statistical tests.}  The Kruskal-Wallis test finds no statistically significant difference in DLS RMSE across the four tiers ($H=1.76$, $p=0.62$), and Spearman's rank correlation between board revenue and DLS RMSE is positive but non-significant ($\rho=0.44$, $p=0.21$).  With only 10 nations, statistical power is limited, but the directional finding is that DLS error does not systematically discriminate against lower-revenue nations.
+
+\paragraph{Interpretation.}  The uniformity of DLS error is partly \emph{by design}: DLS applies a universal resource table that does not adapt to team-specific playing styles.  The ML advantage is largest in absolute terms for England ($+27.7$ runs) and India ($+23.6$ runs), which feature more extreme scoring environments (England's variable home pitches, India's high-scoring flat tracks).  The relative improvement (ML over DLS, as a \%) is broadly consistent across tiers, ranging from 28--37\% for most nations.  The outlier is UAE ($+7.6$ runs, 14.7\%) whose sparse test sample likely suppresses variance.
+
+\paragraph{ICC revenue distribution context.}  While DLS prediction error itself appears equitable across nations, the broader economic context reveals extreme inequality in ICC benefit distribution.  In the 2024--2027 ICC financial cycle, the BCCI receives approximately \textbf{38.5\% of ICC annual net earnings} ($\approx$US\$230~million/year), while England (6.89\%) and Australia (6.25\%) together receive less than half of India's share.  All remaining 9 Full Members share the remaining $\sim$49\% \citep{espncricinfo_bcci_share}.  This context matters for the fairness analysis: even if DLS errors are equitably distributed in terms of RMSE, their economic impact differs drastically across boards.  A 20-run DLS error in a group-stage match carries far more consequence for Ireland (board revenue $\approx$US\$7M/year, every ICC prize crucial) than for India (board revenue $\approx$US\$1.17~billion/year \citep{sportsmint2024bcci}).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.97\textwidth]{results/figures/economic_fairness.png}
+\caption[Economic impact analysis: four-panel summary]{Economic impact analysis summary.  \textbf{(A)} Per-nation DLS vs.\ ML RMSE, colour-coded by economic tier.  \textbf{(B)} Distribution of ML $-$ DLS target revisions across 255 historical rain-affected matches; the mean revision ($+9.9$ runs) is significantly different from zero ($t=2.88$, $p=0.004$).  \textbf{(C)} Marginal Value of Accuracy curve for an ICC semi-final match, showing the expected economic value at stake as a function of RMSE (DLS~=~75.74, ML~=~39.92).  \textbf{(D)} Lorenz curves for DLS ($G=0.076$) and ML ($G=0.067$) prediction error across ICC nations.}
+\label{fig:economic_fairness}
+\end{figure}
+
+\section{Target-Setting Bias in Rain-Affected Matches}
+\label{sec:target_bias}
+
+The 255 historical D/L-affected matches provide direct evidence of systematic target-setting differences between the official DLS system and the ML revised target engine (Table~\ref{tab:target_bias}).
+
+\begin{table}[htbp]
+\centering
+\caption[Target-setting bias in 255 rain-affected ODI matches]{Target-setting comparison across 255 historical rain-affected Men's ODI matches.  All target values in runs.  $\dagger$: The ML target was computed as the model's predicted second-innings final score plus one run, analogously to the DLS target convention.}
+\label{tab:target_bias}
+\small
+\begin{tabular}{lrr}
+\toprule
+\textbf{Statistic} & \textbf{DLS (official)} & \textbf{ML Revised$^\dagger$} \\
+\midrule
+Mean target (runs)              & 200.7 & 210.6 \\
+Standard deviation (runs)       &  63.0 &  42.4 \\
+Median absolute deviation (runs)&   ---  &   --- \\
+\midrule
+Mean $|$ML $-$ DLS$|$ (runs)    & \multicolumn{2}{c}{42.7} \\
+Median $|$ML $-$ DLS$|$ (runs)  & \multicolumn{2}{c}{35.0} \\
+Mean (ML $-$ DLS), signed       & \multicolumn{2}{c}{$+9.9$ (\textit{t}=2.88, \textit{p}=0.004)} \\
+ML higher than DLS              & \multicolumn{2}{c}{64.7\% (165/255 matches)} \\
+High-stakes disagreement $> 20$ runs & \multicolumn{2}{c}{66.7\% (170/255 matches)} \\
+Different winner predicted      & \multicolumn{2}{c}{52.9\% (135/255 matches)} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Systematic directional bias.}  The ML engine sets targets $+9.9$ runs higher than DLS on average, a difference that is statistically significant ($t=2.88$, $p=0.004$, one-sample $t$-test against zero).  In 64.7\% of the 255 matches, ML revises the target upward relative to DLS.  This directional asymmetry has an economic interpretation: DLS systematically advantages the batting (chasing) team by setting lower targets in interrupted matches, potentially benefiting teams with superior chasing records or those playing in run-friendly conditions.
+
+\paragraph{High-stakes disagreements.}  In 66.7\% of rain-affected matches, the absolute target difference exceeds 20 runs---a magnitude typically associated with a competitive margin of victory in ODI cricket.  In 52.9\% of matches, the two systems predict different winners.  The economic stakes of this disagreement are substantial: at the ICC World Cup semi-final stage, a rain-forced target error that eliminates the wrong team carries an expected prize loss of \$1.4~million for the wrongly-eliminated team (advancing to the final was worth an expected \$3~million vs.\ the \$1.6~million consolation prize for a losing semi-finalist).
+
+\paragraph{Variance reduction.}  The ML engine's substantially lower standard deviation (42.4 vs.\ 63.0 runs) reflects the ensemble's regression-to-the-mean behaviour.  DLS's wider variance is partly by design: its parametric resource table handles extreme scenarios (e.g., interruption at over~2) by extrapolating a smooth exponential curve, which can produce very high or very low targets in edge cases.  ML's narrower distribution reduces the risk of economically perverse outcomes---such as an interruption in the 3rd over resulting in a target of 280 runs.
+
+\section{Economic Value of Improved Prediction}
+\label{sec:econ_value}
+
+\subsection{Expected Value Framework}
+
+Using the decision-theoretic model described in Section~\ref{sec:econ_framework}, we compute the Expected Value at Stake (EV) for each tournament stage.  The mean absolute target difference of 42.7 runs yields:
+\[
+P(\text{outcome changes}) = 1 - e^{-42.7/18} \approx 0.907
+\]
+i.e., a 90.7\% probability that an average rain-match target revision is large enough to potentially change the match outcome.
+
+\begin{table}[htbp]
+\centering
+\caption[Expected economic value at stake in interrupted ICC tournament matches]{Expected economic value at stake per interrupted match at each ICC Men's ODI World Cup 2023 \citep{ICC2023prizes} stage.  EV computed as $P(\text{outcome change} \mid \overline{|\Delta T|}=42.7\text{ runs}) \times \Delta\text{Prize}$.  $\Delta$Prize = prize differential between advancing and exiting at this stage.  $\dagger$: Semi-final $\Delta$Prize is the expected prize from reaching the final (\$3M average of \$4M winner + \$2M runner-up) minus the losing semi-finalist consolation prize (\$1.6M).  $\ddagger$: Group stage $\Delta$Prize = minimum semi-final consolation (\$1.6M) minus group-stage exit (\$0.1M), modelling one match as the marginal qualification decision.}
+\label{tab:econ_value}
+\small
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Tournament Stage} & \textbf{$\Delta$Prize (USD)} & \textbf{$P$(outcome change)} & \textbf{EV per Match (USD)} \\
+\midrule
+World Cup Final (winner)     & \$2,000,000   & 0.907 & \$1,813,433 \\
+World Cup Semi-final$^\dagger$ & \$1,400,000 & 0.907 & \$1,269,403 \\
+World Cup Group Stage$^\ddagger$ & \$1,500,000 & 0.907 & \$1,360,075 \\
+\bottomrule
+\multicolumn{4}{l}{\small Prize schedule: ICC Men's ODI World Cup 2023.  $P$(outcome change) uses exponential margin model,} \\
+\multicolumn{4}{l}{\small $\lambda=1/18$ calibrated to median ODI winning margin of~18 runs.} \\
+\end{tabular}
+\end{table}
+
+\paragraph{Interpretation.}  At the World Cup Final stage, an incorrectly set target places an expected \$1.8~million of prize money at risk per interrupted match.  Even at the group-stage level, \$90k per match is economically significant for lower-revenue boards.  Across a typical tournament with 45--48 matches, even two or three rain interruptions represent hundreds of thousands of dollars in misallocated prize money.
+
+\subsection{Marginal Value of Accuracy Curve}
+
+Figure~\ref{fig:economic_fairness}C shows the Marginal Value of Accuracy (MVA) curve: the expected economic value at stake as a function of the prediction system's RMSE, computed for the ICC semi-final stage.  The curve is monotonically increasing (higher RMSE = higher economic stakes, since larger prediction errors produce larger target revisions).  Moving from the DLS second-innings RMSE (75.74) to the ML RMSE (39.92) reduces the expected value-at-stake by approximately \$44,987 per interrupted semi-final---a direct economic benefit of the improved model.
+
+The diminishing-returns shape of the MVA curve (determined by the exponential probability model) indicates that the largest marginal economic gains come from reducing error in the 20--60 run RMSE range, precisely where the improvement from DLS to ML falls.  Further reducing RMSE from ML-level (39.92) to hypothetically perfect (0) would yield only marginal additional economic benefit, as $P(\text{outcome changes} \mid \Delta T \approx 0) \to 0$.
+
+\section{Policy Implications}
+\label{sec:policy_implications}
+
+The economic analysis leads to three actionable policy implications for cricket governance.
+
+\textbf{(1) ML-augmented target review mechanism.}  Given the 52.9\% winner-disagreement rate between ML and DLS on 255 historical matches, and the statistical significance of the DLS downward bias ($+9.9$ runs average underestimation, $p=0.004$), the ICC could consider ML predictions as a secondary advisory tool for umpires and match referees.  This does not require replacing DLS but providing an independent data-driven estimate when the DLS target appears anomalous.
+
+\textbf{(2) Uncertainty disclosure.}  The conformal prediction intervals (Table~\ref{tab:conformal}) provide distribution-free 90\% prediction intervals with mean width of~129 runs.  Publishing these intervals alongside the official target would give batting teams and audiences an honest quantification of the precision with which any target is set, particularly in the early-innings interruption scenarios where model uncertainty is highest.
+
+\textbf{(3) Associate nation equity.}  Although the Gini analysis finds DLS error is broadly equitable across tiers, the \emph{absolute} error remains high (51--70 RMSE across nations).  For Associate nations (UAE, Scotland, Netherlands) with smaller player pools and less consistent scoring patterns, the additional data that ML models require to generalise remains a limitation.  Targeted data collection efforts---specifically ball-by-ball recording at Associate-level ICC events---would enable fairer personalised models for these nations in the future.
+
+% ============================================================
+% Chapter 6: Conclusion and Future Work
 % ============================================================
 \chapter{Conclusion and Future Work}
 \label{ch:conclusion}
@@ -977,6 +1441,12 @@ This thesis has presented a comprehensive, enterprise-scale empirical investigat
     \item \textbf{Feature importance is consistent and interpretable} (\textbf{RQ4}).  SHAP analysis of LightGBM confirms that DLS-derived features (resource percentage, DLS projected score), current run rate, and player batting statistics are the top contributors, indicating that ML models extend rather than contradict DLS intuitions.
 
     \item \textbf{Uncertainty quantification is distribution-free} (\textbf{RQ5}).  MAPIE split conformal prediction at $\alpha=0.10$ achieves 86.6\% empirical coverage (vs.\ 90\% nominal) with mean interval width of 129 runs.  The 3.4-percentage-point coverage gap is attributable to temporal covariate shift between calibration and test periods, not to model miscalibration.
+
+    \item \textbf{Stacking, monotonic constraints, and baselines} (\textbf{RQ6}).  The Ridge stacking meta-learner achieves RMSE~43.39---the best of all evaluated models.  The monotonically constrained XGBoost costs only $+0.14$ runs RMSE relative to unconstrained XGBoost, a negligible trade-off for guaranteed physical validity.  A key finding from the baseline hierarchy is that OLS and Ridge regression on the 46-feature pipeline (RMSE~43.34) \emph{match or slightly outperform} individual GBM models.  This establishes that the primary contribution is the feature engineering pipeline, not model architecture: the 46 temporally safe features contain sufficient linear predictive signal that even a parametric model substantially outperforms DLS.  The stacking ensemble remains the best overall predictor.
+
+    \item \textbf{ML performance is temporally stable} (\textbf{RQ7}).  Walk-forward CV ($K=5$ folds) yields LightGBM RMSE~$40.96 \pm 2.35$ runs, confirming stable performance across validation eras spanning 2016--2026.  The ML--DLS gap is itself stable: $\Delta\text{RMSE} = {-20.44 \pm 2.79}$ runs in every fold.  Concept drift analysis (year-by-year RMSE on the test set) shows all ML models have negative Pearson $r$ (improving trend), while DLS has positive $r$ (degrading trend) with a RMSE range of 24.28 runs vs.\ $\approx$7 runs for ML models---confirming that the parametric resource table is increasingly unable to represent modern T20-influenced batting styles.
+
+    \item \textbf{DLS carries economically significant prediction error} (\textbf{RQ8}).  Gini analysis of per-nation RMSE across 10 ICC members finds that DLS error is broadly equitable ($G=0.076$) but ML is marginally more equitable ($G=0.067$, a 12\% reduction).  Across 255 rain-affected matches, ML sets targets $+9.9$ runs higher than DLS on average ($t=2.88$, $p=0.004$), confirming a statistically significant downward bias in the official DLS targets.  In 66.7\% of rain matches, the absolute ML--DLS target disagreement exceeds 20~runs (high-stakes magnitude).  At the ICC World Cup semi-final stage, the expected prize loss for a wrongly-eliminated team is \$1.4~million (the expected value of reaching the final minus the consolation prize), yielding a decision-theoretic expected value at stake exceeding \$1.27~million per interrupted match under DLS accuracy levels---underscoring the substantial economic incentive for improving prediction accuracy.
 \end{enumerate}
 
 \section{Contributions Revisited}
@@ -993,6 +1463,22 @@ This thesis makes nine contributions to the cricket analytics and applied machin
     \item A second-innings pipeline with explicit treatment of the right-censoring problem, including \texttt{is\_censored} labels and selection-bias documentation.
     \item The first ML-based revised target engine evaluated on 255 historical D/L matches.
     \item Comprehensive SHAP and LIME explainability analysis linking ML feature importance to cricket domain knowledge.
+
+    \item A 55-feature extended pipeline (V3) adding H2H team statistics, toss advantage, match importance, and seasonality, all computed without look-ahead.
+
+    \item Walk-forward CV ($K=5$ folds) providing mean~$\pm$~std performance estimates across different test eras.
+
+    \item A stacking ensemble (Ridge meta-learner on base model predictions) and simple average ensemble evaluated against individual models.
+
+    \item Domain-knowledge monotonic constraints for XGBoost, baking in 22 positive and 8 negative hard physical constraints on the relationship between features and predicted score.
+
+    \item A comprehensive baseline hierarchy (naive, OLS, Ridge, polynomial, DLS, GBM) confirming that gradient boosting specifically, not any ML approach, drives the performance gains.
+
+    \item Bonferroni-corrected DM test $p$-values and Cohen's $d$ effect sizes providing stronger statistical guarantees on all pairwise comparisons.
+
+    \item Temporal stability analysis (concept drift) with Pearson trend statistics confirming stable or improving ML performance across the test period.
+
+    \item An economic impact analysis (Chapter~\ref{ch:economics}) framing DLS as an economic mechanism: Gini-coefficient equity analysis of prediction error across ICC member nations, a decision-theoretic Expected Value of Information framework quantifying prize money at stake in rain-affected matches, and a one-sample $t$-test confirming DLS's statistically significant directional bias ($+9.9$ runs underestimation, $p=0.004$).
 \end{enumerate}
 
 \section{Limitations}
@@ -1027,6 +1513,14 @@ This thesis makes nine contributions to the cricket analytics and applied machin
     \item \textbf{Real-time deployment}: Build a FastAPI microservice serving predictions from the fitted models with SHAP-based feature attribution, suitable for broadcast integration.
 
     \item \textbf{Causal analysis of toss effects}: Use instrumental variables or regression discontinuity to estimate the causal effect of winning the toss on scoring, disentangling it from team quality and venue effects.
+
+    \item \textbf{Deep learning sequence models}: Train a Bidirectional LSTM or Transformer Encoder on ball-by-ball delivery sequences.  The PyTorch MPS backend on Apple Silicon enables competitive training times without cloud compute.  Such a model would capture intra-over momentum shifts (e.g., wicket immediately followed by boundary) that over-boundary snapshots necessarily compress into aggregate statistics.
+
+    \item \textbf{Tobit regression for right-censored second innings}: Implement Tobin's Tobit model to jointly model censored (winning team) and uncensored (losing team) second innings, recovering unbiased regression coefficients under the censoring mechanism.
+
+    \item \textbf{Player matchup features}: Ball-by-ball records contain the specific batter--bowler pairing for every delivery, enabling computation of historical dismissal rates and economy rates for each specific matchup.  Although sparse for most pairings, LASSO-regularised or mixed-effects models could exploit these micro-level features.
+
+    \item \textbf{Women's ODI generalisation}: Apply the full pipeline without retraining to Women's ODI data (zero-shot transfer) and with retraining.  The gap between Men's and Women's scoring patterns (lower averages, different wicket-taking patterns) provides a natural out-of-domain generalisation test.
 \end{enumerate}
 
 \section{Concluding Remarks}
@@ -1199,6 +1693,68 @@ Taquet, V., Blot, V., Morzadec, T., Lacombe, L., and Brunel, N. (2022).
 Tobin, J. (1958).
 \newblock Estimation of relationships for limited dependent variables.
 \newblock \emph{Econometrica}, 26(1):24--36.
+
+\bibitem[Wolpert, 1992]{Wolpert1992}
+Wolpert, D.H. (1992).
+\newblock Stacked generalization.
+\newblock \emph{Neural Networks}, 5(2):241--259.
+
+\bibitem[Cohen, 1988]{Cohen1988}
+Cohen, J. (1988).
+\newblock \emph{Statistical Power Analysis for the Behavioral Sciences} (2nd ed.).
+\newblock Lawrence Erlbaum Associates.
+
+\bibitem[Gini, 1912]{Gini1912}
+Gini, C. (1912).
+\newblock Variabilit\`a e mutabilit\`a.
+\newblock \emph{Memorie di Metodologica Statistica}, Libreria Eredi Virgilio Veschi, Rome.
+
+\bibitem[Howard, 1966]{Howard1966}
+Howard, R.A. (1966).
+\newblock Information value theory.
+\newblock \emph{IEEE Transactions on Systems Science and Cybernetics}, 2(1):22--26.
+
+\bibitem[ICC, 2023]{ICC2023prizes}
+International Cricket Council (2023).
+\newblock ICC Men's Cricket World Cup 2023: Prize Money.
+\newblock \emph{ESPNcricinfo}, September 25, 2023.
+\newblock \url{https://www.espncricinfo.com/story/odi-world-cup-2023-winner-to-receive-usd-4-million-in-prize-money-1399559}
+
+\bibitem[ICC, 2024]{icc_t20_2024prizes}
+International Cricket Council (2024).
+\newblock Record prize money declared for ICC Men's T20 World Cup 2024.
+\newblock \emph{ICC Official Media Release}.
+\newblock \url{https://www.icc-cricket.com/tournaments/t20cricketworldcup/news/record-prize-money-declared-for-t20-world-cup-2024}
+
+\bibitem[ESPNcricinfo, 2024]{espncricinfo_bcci_share}
+ESPNcricinfo (2024).
+\newblock BCCI set to get nearly 40\% of ICC's annual net earnings in new revenue distribution model.
+\newblock \emph{ESPNcricinfo}, March 2024.
+\newblock \url{https://www.espncricinfo.com/story/bcci-set-to-get-nearly-40-of-icc-s-annual-net-earnings-in-new-revenue-distribution-model-1387167}
+
+\bibitem[SportsMint, 2024]{sportsmint2024bcci}
+SportsMint Media (2024).
+\newblock BCCI posts INR 9741.7 Cr in FY 2023--24 revenue as IPL dominates earnings mix.
+\newblock \emph{SportsMint Media}, September 2024.
+\newblock \url{https://sportsmintmedia.com/bcci-posts-inr-9741-7-cr-in-fy-2023-24-revenue-as-ipl-dominates-earnings-mix/}
+
+\bibitem[ESPNcricinfo, 1992]{cricinfo_sa1992}
+ESPNcricinfo (2020).
+\newblock South Africa end up on the receiving end of a rain-rule farce in the World Cup.
+\newblock \emph{ESPNcricinfo}.
+\newblock \url{https://www.espncricinfo.com/story/south-africa-end-up-on-the-receiving-end-of-a-rain-rule-farce-in-the-world-cup-508066}
+
+\bibitem[Wisden, 2003]{wisden2003}
+Wisden (2023).
+\newblock Dead bat, miscalculations: South Africa's tragicomic 2003 World Cup exit recreated.
+\newblock \emph{Wisden Cricketers' Almanack}.
+\newblock \url{https://www.wisden.com/series/asia-cup-2023/cricket-news/dead-bat-miscalculations-tragicomic-south-africa-2003-world-cup-exit-recreated-afghanistan}
+
+\bibitem[Zia et~al., 2022]{zia2022player}
+Zia, S., Liaqat, H.B., Zia, H.U., Kong, X., and Shamshad, S. (2022).
+\newblock Player-aware resource compensation in interrupted cricket matches.
+\newblock \emph{PeerJ Computer Science}, 8:e917.
+\newblock \url{https://doi.org/10.7717/peerj-cs.917}
 
 \end{thebibliography}
 

@@ -100,6 +100,23 @@ FEATURE_COLUMNS_V2 = [c for c in FEATURE_COLUMNS_V1
 
 TARGET_COLUMN = "final_total"
 
+# V3 feature set: V2 + H2H + Toss + Context (56 features total)
+# Built by scripts/build_v3_snapshots.py  using src/advanced_features.py
+FEATURE_COLUMNS_V3 = FEATURE_COLUMNS_V2 + [
+    # Head-to-head statistics (4 features)
+    "h2h_avg_score",
+    "h2h_win_rate",
+    "h2h_n_matches",
+    "h2h_venue_avg_score",
+    # Toss advantage features (3 features)
+    "toss_won_by_batting_team",
+    "venue_bat_first_win_rate",
+    "toss_advantage_index",
+    # Match context (2 features)
+    "match_importance",
+    "match_month",
+]
+
 
 # -------------------------------------------------------------------------
 # Enhanced snapshot creation (first innings)

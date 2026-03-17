@@ -1,0 +1,19 @@
+{
+  "mean_abs_target_diff_runs": 42.7,
+  "p_outcome_change_given_mean_diff": 0.9067,
+  "ev_per_match_usd": {
+    "ICC World Cup (Winner)": 1813433.0,
+    "ICC World Cup (Semi-final)": 634702.0,
+    "ICC World Cup (Group stage)": 90672.0
+  },
+  "gini_dls": 0.076,
+  "gini_ml": 0.0667,
+  "kruskal_wallis_H": 1.7636,
+  "kruskal_wallis_p": 0.6229,
+  "spearman_revenue_dls_rmse": 0.4377,
+  "ttest_target_diff_t": 2.8821,
+  "ttest_target_diff_p": 0.0043,
+  "mean_target_diff_ml_minus_dls": 9.93,
+  "n_rain_matches": 255,
+  "pct_high_stakes_disagreement": 66.7
+}

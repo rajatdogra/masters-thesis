@@ -1,0 +1,14 @@
+{
+  "n_folds": 5,
+  "n_trials_per_fold": 20,
+  "lgb_rmse_mean": 40.9619,
+  "lgb_rmse_std": 2.3454,
+  "lgb_r2_mean": 0.6316,
+  "lgb_r2_std": 0.0263,
+  "lgb_mae_mean": 30.3442,
+  "lgb_mae_std": 1.9933,
+  "dls_rmse_mean": 61.4059,
+  "dls_rmse_std": 4.2596,
+  "delta_rmse_mean": -20.4439,
+  "delta_rmse_std": 2.7902
+}

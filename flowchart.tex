@@ -1,0 +1,198 @@
+\documentclass{article}
+\usepackage[paperwidth=22cm,paperheight=32cm,margin=0.5cm]{geometry}
+\pagestyle{empty}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds, decorations.pathreplacing}
+
+% ── Colour palette ──────────────────────────────────────────
+\definecolor{colData}{HTML}{D6EAF8}   % light blue  – data layer
+\definecolor{colFeat}{HTML}{D5F5E3}   % light green – feature engineering
+\definecolor{colModel}{HTML}{FDEBD0}  % light orange – models
+\definecolor{colEval}{HTML}{F9EBEA}   % light red   – evaluation
+\definecolor{colEcon}{HTML}{EBF5FB}   % pale blue   – economics
+\definecolor{colOut}{HTML}{F4ECF7}    % light purple – output
+\definecolor{colDLS}{HTML}{FEF9E7}    % pale yellow  – DLS baseline
+\definecolor{border}{HTML}{2C3E50}    % dark border
+
+\tikzset{
+  base/.style={
+    rectangle, rounded corners=5pt,
+    draw=border, line width=0.8pt,
+    align=center, font=\small,
+    inner sep=6pt, minimum height=1cm
+  },
+  data/.style   ={base, fill=colData,   text width=7.5cm},
+  feat/.style   ={base, fill=colFeat,   text width=7.5cm},
+  split/.style  ={base, fill=colFeat,   text width=7.5cm},
+  model/.style  ={base, fill=colModel,  text width=5.0cm},
+  dls/.style    ={base, fill=colDLS,    text width=3.2cm},
+  ext/.style    ={base, fill=colModel,  text width=7.5cm},
+  eval/.style   ={base, fill=colEval,   text width=7.5cm},
+  expl/.style   ={base, fill=colEval,   text width=3.6cm},
+  rain/.style   ={base, fill=colData,   text width=3.6cm},
+  econ/.style   ={base, fill=colEcon,   text width=7.5cm},
+  out/.style    ={base, fill=colOut,    text width=7.5cm},
+  arr/.style    ={-{Stealth[length=7pt]}, line width=1.2pt, color=border},
+  label/.style  ={font=\footnotesize\bfseries, color=border}
+}
+
+\begin{document}
+\begin{tikzpicture}[node distance=0.55cm]
+
+%% ── Column 1 (main flow) ──────────────────────────────────
+
+% 1. Data
+\node[data] (raw) {%
+  \textbf{Data Collection}\\[2pt]
+  Cricsheet ball-by-ball records \textbullet{} 3,500+ Men's ODI matches (2002--2026)\\
+  $\sim$130k deliveries per innings \textbullet{} match metadata \& player identities
+};
+
+% 2. Processing
+\node[data, below=of raw] (proc) {%
+  \textbf{Data Processing}\\[2pt]
+  Match-state snapshots recorded at each completed over boundary\\
+  \textbf{First innings:} 129,322 snapshots \textbullet{} \textbf{Second innings:} 112,935 snapshots\\
+  Right-censoring identified: 49.2\% of 2nd-innings snapshots (winning teams)
+};
+
+% 3. Feature engineering
+\node[feat, below=of proc] (feat) {%
+  \textbf{Feature Engineering — V2 Pipeline (46 features)}\\[2pt]
+  \begin{tabular}{@{}ll@{\hspace{8pt}}ll@{}}
+    Match state (6) & Elo ratings (5) & Venue history (6) & Momentum (6) \\
+    Player stats (9) & DLS-derived (4) & Phase / Context (10) & \\
+  \end{tabular}\\[3pt]
+  All features computed \emph{strictly chronologically} — no look-ahead\\
+  V3 extension: 9 additional H2H, toss-advantage \& context features (55 total)
+};
+
+% 4. Split
+\node[split, below=of feat] (split) {%
+  \textbf{Temporal Three-Way Split} \quad (strictly chronological)\\[2pt]
+  \textbf{60\% Train} (pre-2018, $\approx$78k) \quad
+  \textbf{20\% Calibration} (2018--2021, $\approx$26k) \quad
+  \textbf{20\% Test} (2022--2026, 542 matches)
+};
+
+%% ── Two branches after split ──────────────────────────────
+
+% DLS branch (left)
+\node[dls, below left=0.8cm and 0.5cm of split] (dls) {%
+  \textbf{DLS Baseline}\\[2pt]
+  Fit $Z(u,w)$ via\\
+  \texttt{scipy.optimize}\\
+  on 3,086 matches\\[2pt]
+  Resource table $R(u,w)$
+};
+
+% ML branch (right)
+\node[model, below right=0.8cm and -0.5cm of split] (ml) {%
+  \textbf{ML Models}\\[2pt]
+  XGBoost \quad LightGBM \quad CatBoost\\[2pt]
+  \textbf{Optuna} Bayesian HPO\\
+  100 / 50 / 50 trials\\
+  Early stopping on calibration set
+};
+
+%% ── Rejoin ────────────────────────────────────────────────
+
+% Extended architectures
+\node[ext, below=3.2cm of split] (ext) {%
+  \textbf{Extended Architectures}\\[2pt]
+  \textbf{Stacking Ensemble} — Ridge meta-learner on XGB + LGB + CAT calibration predictions ($\alpha=1000$)\\
+  \textbf{Monotonic XGBoost} — 23 positive \& 8 negative domain-knowledge constraints\\
+  \textbf{Walk-Forward CV} — $K=5$ expanding temporal folds (2016--2026), LGB retrained per fold\\
+  \textbf{Quantile Regression} — LightGBM pinball loss at 7 quantiles ($\tau = 0.05,\ldots,0.95$)
+};
+
+% 5. Statistical evaluation
+\node[eval, below=of ext] (eval) {%
+  \textbf{Statistical Evaluation Framework}\\[2pt]
+  \textbf{DM Test} + Newey-West HAC ($h=8$) \textbullet{}
+  \textbf{Block Bootstrap} CI ($n=5000$ replications, 95\%) \textbullet{}
+  \textbf{MCS} ($\alpha=0.10$)\\
+  \textbf{Bonferroni correction} ($k=6$ tests) \textbullet{}
+  \textbf{Cohen's $d$} effect sizes \textbullet{}
+  \textbf{Ablation} (7 feature groups, 20 Optuna trials each)\\
+  \textbf{Conformal Prediction} — MAPIE \texttt{SplitConformalRegressor}, 90\% nominal coverage
+};
+
+%% ── Side branches (explainability + rain) ────────────────
+
+\node[expl, below left=0.8cm and 0.4cm of eval] (expl) {%
+  \textbf{Explainability}\\[2pt]
+  SHAP (global \&\\
+  per-prediction)\\[2pt]
+  LIME (local\\
+  explanations)
+};
+
+\node[rain, below right=0.8cm and -0.4cm of eval] (rain) {%
+  \textbf{Rain Match\\Evaluation}\\[2pt]
+  255 historical D/L\\
+  affected matches\\[2pt]
+  ML revised targets\\
+  vs.\ official DLS
+};
+
+%% ── Economic analysis ─────────────────────────────────────
+
+\node[econ, below=3.2cm of eval] (econ) {%
+  \textbf{Economic Impact Analysis}\\[2pt]
+  \textbf{Gini Coefficient} — equity of prediction error across 10 ICC member nations (4 tiers)\\
+  \textbf{Expected Value of Information (EVI)} — $P(\text{outcome change}\mid\Delta T)\times\Delta\text{Prize}$\\
+  \textbf{Target Bias Test} — one-sample $t$-test: mean ML$-$DLS = $+9.9$ runs ($p=0.004$)\\
+  \textbf{ICC Revenue Context} — BCCI 38.5\% of ICC earnings vs.\ Associate nation budgets
+};
+
+%% ── Output / Conclusions ─────────────────────────────────
+
+\node[out, below=of econ] (out) {%
+  \textbf{Results \& Conclusions}\\[2pt]
+  First innings: CatBoost RMSE~43.57, $R^2=0.618$ \quad ($-33\%$ vs.\ DLS RMSE~65.03)\\
+  Second innings: CatBoost RMSE~39.92 \quad ($-47\%$ vs.\ DLS RMSE~75.74, $R^2=-0.457$)\\
+  Stacking (best): RMSE~43.39 \textbullet{} Walk-forward $\Delta$RMSE~$-20.44\pm2.79$ \textbullet{} EV at WC semi-final: \$1.27M/match\\
+  All ML-vs-DLS DM tests: $p<0.001$ \textbullet{} Bootstrap 95\% CI: $[-23.94,\,-18.72]$ runs
+};
+
+%% ── Arrows (main flow) ───────────────────────────────────
+
+\draw[arr] (raw)   -- (proc);
+\draw[arr] (proc)  -- (feat);
+\draw[arr] (feat)  -- (split);
+
+% Split to DLS and ML
+\draw[arr] (split.south) -- ++(0,-0.35) -| (dls.north);
+\draw[arr] (split.south) -- ++(0,-0.35) -| (ml.north);
+
+% DLS and ML merge to ext
+\draw[arr] (dls.south) -- ++(0,-0.3) -| (ext.north west);
+\draw[arr] (ml.south)  -- ++(0,-0.3) -| (ext.north east);
+
+\draw[arr] (ext)   -- (eval);
+
+% Eval to explainability and rain
+\draw[arr] (eval.south) -- ++(0,-0.35) -| (expl.north);
+\draw[arr] (eval.south) -- ++(0,-0.35) -| (rain.north);
+
+% Explainability and rain merge to econ
+\draw[arr] (expl.south) -- ++(0,-0.3) -| (econ.north west);
+\draw[arr] (rain.south) -- ++(0,-0.3) -| (econ.north east);
+
+\draw[arr] (econ) -- (out);
+
+%% ── Legend ────────────────────────────────────────────────
+\begin{scope}[shift={(9.0cm, -1.5cm)}]
+  \node[base, fill=colData,  text width=2.8cm, minimum height=0.6cm, font=\footnotesize] at (0, 0)    {Data \& Processing};
+  \node[base, fill=colFeat,  text width=2.8cm, minimum height=0.6cm, font=\footnotesize] at (0,-0.85) {Feature Engineering};
+  \node[base, fill=colModel, text width=2.8cm, minimum height=0.6cm, font=\footnotesize] at (0,-1.70) {ML Modelling};
+  \node[base, fill=colDLS,   text width=2.8cm, minimum height=0.6cm, font=\footnotesize] at (0,-2.55) {DLS Baseline};
+  \node[base, fill=colEval,  text width=2.8cm, minimum height=0.6cm, font=\footnotesize] at (0,-3.40) {Evaluation};
+  \node[base, fill=colEcon,  text width=2.8cm, minimum height=0.6cm, font=\footnotesize] at (0,-4.25) {Economic Analysis};
+  \node[base, fill=colOut,   text width=2.8cm, minimum height=0.6cm, font=\footnotesize] at (0,-5.10) {Conclusions};
+  \node[font=\small\bfseries] at (0, 0.65) {Legend};
+\end{scope}
+
+\end{tikzpicture}
+\end{document}

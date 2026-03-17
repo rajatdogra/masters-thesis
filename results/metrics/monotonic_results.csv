@@ -1,0 +1,4 @@
+model,rmse,r2,mae
+MonotonicXGBoost,44.1876,0.6074,32.8264
+XGBoost_V2,44.0491,0.6099,32.8449
+DLS,65.0262,0.1499,44.8086

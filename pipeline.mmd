@@ -1,0 +1,58 @@
+flowchart TD
+    A(["`**Data Collection**
+    3,500+ Men's ODI matches · Cricsheet 2002–2026`"])
+
+    B(["`**Data Processing**
+    129k first-innings · 113k second-innings · 49.2% right-censored`"])
+
+    C(["`**Feature Engineering** *(46 features)*
+    Match state · Player stats · Elo ratings · Venue · DLS-derived`"])
+
+    D(["`**Temporal Three-Way Split**
+    60% Train · 20% Calibration · 20% Test (2022–2026)`"])
+
+    E(["`**DLS Baseline**
+    scipy.optimize fit
+    3,086 complete matches`"])
+
+    F(["`**ML Models**
+    XGBoost · LightGBM · CatBoost
+    Optuna Bayesian HPO`"])
+
+    G(["`**Extended Architectures**
+    Stacking Ensemble · Monotonic XGBoost · Walk-Forward CV`"])
+
+    H(["`**Statistical Evaluation**
+    DM Test · Bootstrap CI · MCS · Bonferroni · Ablation · Conformal`"])
+
+    I(["`**Explainability**
+    SHAP global · SHAP local
+    Feature attribution & DLS divergence`"])
+
+    J(["`**Rain Match Evaluation**
+    255 D/L-affected matches
+    ML vs official DLS targets`"])
+
+    K(["`**Economic Impact Analysis**
+    Gini fairness · EVI framework · Target bias · ICC prize context`"])
+
+    L(["`**Results & Conclusions**
+    CatBoost RMSE −33% vs DLS · All DM tests p < 0.001`"])
+
+    A --> B --> C --> D
+    D --> E & F
+    E & F --> G --> H
+    H --> I & J
+    I & J --> K --> L
+
+    classDef data    fill:#DBEAFE,stroke:#3B82F6,stroke-width:1.5px,color:#1E3A5F,rx:6
+    classDef feat    fill:#D1FAE5,stroke:#10B981,stroke-width:1.5px,color:#064E3B,rx:6
+    classDef model   fill:#FEF3C7,stroke:#F59E0B,stroke-width:1.5px,color:#78350F,rx:6
+    classDef eval    fill:#FCE7F3,stroke:#EC4899,stroke-width:1.5px,color:#831843,rx:6
+    classDef out     fill:#EDE9FE,stroke:#8B5CF6,stroke-width:1.5px,color:#4C1D95,rx:6
+
+    class A,B data
+    class C,D feat
+    class E,F,G model
+    class H,I,J eval
+    class K,L out
